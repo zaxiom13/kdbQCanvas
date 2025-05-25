@@ -1,4 +1,4 @@
-# KotlinQanvas
+# kdbQCanvas
 
 A Q/KDB+ query interface and visualization tool built with Kotlin backend and React frontend.
 
