@@ -32,11 +32,59 @@ const QueryHistory = ({ history, setQuery }) => {
             onClick={() => setQuery(item.query)}
           >
             <div className="flex-1 min-w-0">
-              <div className="font-mono text-sm text-gray-800 group-hover:text-indigo-700 truncate">
-                {item.query}
+              <div className="font-mono text-sm text-gray-800 group-hover:text-indigo-700 truncate flex items-center space-x-2">
+                <span>{item.query}</span>
+                {item.isLiveMode && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    🔴 Live Mode
+                  </span>
+                )}
               </div>
-              <div className="text-xs text-gray-500 group-hover:text-indigo-600">
-                {item.timestamp} • {item.result.success ? '✓ Success' : '✗ Failed'}
+              <div className="text-xs text-gray-500 group-hover:text-indigo-600 flex items-center space-x-2">
+                {item.isLiveMode ? (
+                  <>
+                    <span>Started: {item.timestamp}</span>
+                    {item.endTime && (
+                      <>
+                        <span>•</span>
+                        <span>Ended: {item.endTime}</span>
+                      </>
+                    )}
+                    {!item.endTime && item.latestTimestamp && (
+                      <>
+                        <span>•</span>
+                        <span>Last: {item.latestTimestamp}</span>
+                        <span className="inline-flex items-center animate-pulse">
+                          <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                        </span>
+                      </>
+                    )}
+                    {item.executionCount && (
+                      <>
+                        <span>•</span>
+                        <span className="px-1 rounded text-xs bg-purple-100 text-purple-600">
+                          {item.executionCount} executions
+                        </span>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <span>{item.timestamp}</span>
+                )}
+                <span>•</span>
+                <span>{item.result.success ? '✓ Success' : '✗ Failed'}</span>
+                {item.channel && (
+                  <>
+                    <span>•</span>
+                    <span className={`px-1 rounded text-xs ${
+                      item.channel === 'fast' 
+                        ? 'bg-green-100 text-green-600' 
+                        : 'bg-blue-100 text-blue-600'
+                    }`}>
+                      {item.channel === 'fast' ? 'WS' : 'HTTP'}
+                    </span>
+                  </>
+                )}
               </div>
             </div>
             <button className="ml-2 text-gray-400 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity">

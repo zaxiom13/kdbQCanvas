@@ -5,6 +5,7 @@ import CanvasSection from './sections/CanvasSection'
 import ResultDisplay from './result/ResultDisplay'
 import QueryHistory from './history/QueryHistory'
 import ConnectionStatus from './status/ConnectionStatus'
+import ChannelStatusIndicator from './status/ChannelStatusIndicator'
 
 const QQueryInterface = () => {
   const canvasRef = useRef(null)
@@ -26,6 +27,8 @@ const QQueryInterface = () => {
     setCanvasSize,
     liveModeForever,
     setLiveModeForever,
+    channelStatus,
+    communicationManager,
     executeQuery,
     toggleLiveMode
   } = useQQueryInterface(canvasRef)
@@ -80,6 +83,11 @@ const QQueryInterface = () => {
         <div className="w-80 flex-shrink-0 space-y-6">
           <ConnectionStatus 
             connectionStatus={connectionStatus}
+          />
+          
+          <ChannelStatusIndicator 
+            channelStatus={channelStatus}
+            communicationManager={communicationManager}
           />
           
           <QueryHistory 

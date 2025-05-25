@@ -53,7 +53,7 @@ class QueryLifecycleManagerTest {
 
         assertTrue(response.success)
         assertArrayEquals(qResult, response.data as LongArray)
-        assertEquals("LongArray", response.dataType)
+        assertEquals("long[]", response.dataType)
         assertNull(response.error)
     }
 

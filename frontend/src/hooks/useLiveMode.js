@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { containsMouseVariables } from '../utils/queryUtils'
 
-export const useLiveMode = (executeQuery, query, mousePosRef) => {
+export const useLiveMode = (executeQuery, query, mousePosRef, endLiveModeSession) => {
   const [isLiveMode, setIsLiveMode] = useState(false)
   const [liveInterval, setLiveInterval] = useState(null)
   const [liveTimeout, setLiveTimeout] = useState(null)
@@ -19,6 +19,11 @@ export const useLiveMode = (executeQuery, query, mousePosRef) => {
         setLiveTimeout(null)
       }
       setIsLiveMode(false)
+      
+      // Mark the end of live mode session in history
+      if (endLiveModeSession) {
+        endLiveModeSession()
+      }
     } else {
       // Start live mode
       if (!containsMouseVariables(query.trim())) {
@@ -26,11 +31,19 @@ export const useLiveMode = (executeQuery, query, mousePosRef) => {
       }
       
       setIsLiveMode(true)
-      executeQuery()
+      
+      // Execute initial query with live mode options
+      executeQuery(null, null, mousePosRef, query, { 
+        isLiveMode: true, 
+        channelHint: 'fast' 
+      })
       
       const interval = setInterval(() => {
-        executeQuery(null, mousePosRef.current)
-      }, 100)
+        executeQuery(null, mousePosRef.current, mousePosRef, query, { 
+          isLiveMode: true, 
+          channelHint: 'fast' 
+        })
+      }, 100) // 10 FPS for smooth live updates
       
       setLiveInterval(interval)
 
@@ -42,6 +55,11 @@ export const useLiveMode = (executeQuery, query, mousePosRef) => {
             setLiveInterval(null)
           }
           setIsLiveMode(false)
+          
+          // Mark the end of live mode session in history
+          if (endLiveModeSession) {
+            endLiveModeSession()
+          }
         }, 10000) // 10 seconds
         
         setLiveTimeout(timeout)

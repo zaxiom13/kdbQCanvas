@@ -26,11 +26,14 @@ export const compactArrayString = (arr) => {
 }
 
 export const formatArrayWithBoxDrawing = (nestedArr, arrayShape) => {
-  if (!arrayShape || !arrayShape.dimensions || arrayShape.dimensions.length < 2) {
+  // Handle both array format [16, 16] and object format {dimensions: [16, 16]}
+  const dimensions = Array.isArray(arrayShape) ? arrayShape : arrayShape?.dimensions;
+  
+  if (!arrayShape || !dimensions || dimensions.length < 2) {
     return Array.isArray(nestedArr) ? compactArrayString(nestedArr) : String(nestedArr);
   }
 
-  const dims = arrayShape.dimensions;
+  const dims = dimensions;
   let displayLines = [];
 
   if (dims.length === 2) {
@@ -98,21 +101,28 @@ export const formatResult = (data, arrayShape, result) => {
   }
   
   if (Array.isArray(data)) {
+    // Handle both array format [16, 16] and object format {dimensions: [16, 16]}
+    const dimensions = Array.isArray(arrayShape) ? arrayShape : arrayShape?.dimensions;
+    const totalElements = Array.isArray(arrayShape) ? 
+      arrayShape.reduce((a, b) => a * b, 1) : 
+      arrayShape?.totalElements || data.length;
+    const elementType = Array.isArray(arrayShape) ? 'unknown' : arrayShape?.elementType || 'unknown';
+    const isJagged = Array.isArray(arrayShape) ? false : arrayShape?.isJagged || false;
+    
     const shapeInfoString = arrayShape ? [
-      `Dimensions: ${arrayShape.dimensions.join(' × ')}`,
-      `Total Elements: ${arrayShape.totalElements}`,
-      `Element Type: ${arrayShape.elementType}`,
-      arrayShape.isJagged ? '(Jagged Array)' : ''
+      `Dimensions: ${dimensions ? dimensions.join(' × ') : 'unknown'}`,
+      `Total Elements: ${totalElements || 'unknown'}`,
+      `Element Type: ${elementType}`,
+      isJagged ? '(Jagged Array)' : ''
     ].filter(Boolean).join(' | ') : 'Array (shape unknown)';
 
-    const totalElements = arrayShape?.totalElements || data.length;
     const isLargeArray = totalElements > 100;
 
     let dataToFormat = data;
     
-    if (arrayShape && arrayShape.dimensions && arrayShape.dimensions.length > 1 && 
+    if (arrayShape && dimensions && dimensions.length > 1 && 
         isFlatPrimitiveArray(data)) {
-      dataToFormat = formatArrayByShape(data, arrayShape.dimensions);
+      dataToFormat = formatArrayByShape(data, dimensions);
     }
 
     let formattedArrayString;
@@ -132,7 +142,7 @@ Count: ${stats.count}
         formattedArrayString = `[Large array with ${totalElements} elements - unable to calculate statistics]`;
       }
     } else {
-      if (arrayShape && arrayShape.dimensions && arrayShape.dimensions.length >= 2) {
+      if (arrayShape && dimensions && dimensions.length >= 2) {
         formattedArrayString = formatArrayWithBoxDrawing(dataToFormat, arrayShape);
       } else {
         formattedArrayString = compactArrayString(dataToFormat); 

@@ -6,6 +6,20 @@ const ArrayCanvas = forwardRef(({ data, arrayShape, maxCanvasSize = 400 }, ref) 
   const [isPlaying, setIsPlaying] = useState(false)
   const [intervalId, setIntervalId] = useState(null)
 
+  // Debug logging for mouse-based queries
+  useEffect(() => {
+    console.log('ArrayCanvas props debug:', {
+      hasData: !!data,
+      dataType: typeof data,
+      dataLength: Array.isArray(data) ? data.length : 'not array',
+      hasArrayShape: !!arrayShape,
+      arrayShape: arrayShape,
+      arrayShapeType: Array.isArray(arrayShape) ? 'array' : 'object',
+      dimensions: Array.isArray(arrayShape) ? arrayShape : arrayShape?.dimensions,
+      maxCanvasSize
+    })
+  }, [data, arrayShape, maxCanvasSize])
+
   // Forward the canvas ref to parent
   useEffect(() => {
     if (ref) {
@@ -17,17 +31,20 @@ const ArrayCanvas = forwardRef(({ data, arrayShape, maxCanvasSize = 400 }, ref) 
     }
   }, [ref])
 
-  const isGrayscale2D = arrayShape?.dimensions?.length === 2
-  const isColorImage = arrayShape?.dimensions?.length === 3 && arrayShape.dimensions[2] === 3
-  const isGrayscaleGif = arrayShape?.dimensions?.length === 3 && arrayShape.dimensions[2] !== 3
-  const isColorGif = arrayShape?.dimensions?.length === 4 && arrayShape.dimensions[3] === 3
+  // Handle both object format {dimensions: [16, 16]} and array format [16, 16]
+  const dimensions = Array.isArray(arrayShape) ? arrayShape : arrayShape?.dimensions
+  
+  const isGrayscale2D = dimensions?.length === 2
+  const isColorImage = dimensions?.length === 3 && dimensions?.[2] === 3
+  const isGrayscaleGif = dimensions?.length === 3 && dimensions?.[2] !== 3
+  const isColorGif = dimensions?.length === 4 && dimensions?.[3] === 3
 
   useEffect(() => {
-    if (!data || !arrayShape || !arrayShape.dimensions) {
+    if (!data || !arrayShape || !dimensions) {
       return
     }
 
-    const dims = arrayShape.dimensions
+    const dims = dimensions
     if (dims.length < 2 || dims.length > 4) {
       return
     }
@@ -353,7 +370,7 @@ const ArrayCanvas = forwardRef(({ data, arrayShape, maxCanvasSize = 400 }, ref) 
   // Auto-start animation for GIF types
   useEffect(() => {
     if (isGrayscaleGif || isColorGif) {
-      const frames = arrayShape.dimensions[0]
+      const frames = dimensions?.[0] || 1
       const id = setInterval(() => {
         setCurrentFrame(prev => (prev + 1) % frames)
       }, 200) // 200ms per frame = 5 FPS
@@ -364,7 +381,7 @@ const ArrayCanvas = forwardRef(({ data, arrayShape, maxCanvasSize = 400 }, ref) 
         clearInterval(id)
       }
     }
-  }, [isGrayscaleGif, isColorGif, arrayShape])
+  }, [isGrayscaleGif, isColorGif, dimensions])
 
   const handleFrameChange = (e) => {
     const newFrame = parseInt(e.target.value)
@@ -373,7 +390,7 @@ const ArrayCanvas = forwardRef(({ data, arrayShape, maxCanvasSize = 400 }, ref) 
     // When manually changing frame, restart the animation from this frame
     if (intervalId) {
       clearInterval(intervalId)
-      const frames = arrayShape.dimensions[0]
+      const frames = dimensions?.[0] || 1
       const id = setInterval(() => {
         setCurrentFrame(prev => (prev + 1) % frames)
       }, 200) // 200ms per frame = 5 FPS
@@ -390,11 +407,19 @@ const ArrayCanvas = forwardRef(({ data, arrayShape, maxCanvasSize = 400 }, ref) 
     }
   }, [intervalId])
 
-  if (!data || !arrayShape || !arrayShape.dimensions) {
+  if (!data || !arrayShape || !dimensions) {
+    console.log('ArrayCanvas early return debug:', {
+      hasData: !!data,
+      hasArrayShape: !!arrayShape,
+      hasDimensions: !!dimensions,
+      arrayShapeType: Array.isArray(arrayShape) ? 'array' : 'object',
+      arrayShape: arrayShape,
+      dimensions: dimensions
+    })
     return null
   }
 
-  const dims = arrayShape.dimensions
+  const dims = dimensions
   if (dims.length < 2 || dims.length > 4) {
     return null
   }
