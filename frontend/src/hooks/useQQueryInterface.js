@@ -11,13 +11,16 @@ export const useQQueryInterface = (canvasRef) => {
 
   const { mousePos, mousePosRef } = useMousePosition(canvasRef)
   const connectionStatus = useConnectionStatus()
-  const { loading, error, result, history, executeQuery, setError } = useQueryExecution()
+  const { loading, error, result, history, executeQuery, endLiveModeSession, setError, channelStatus, communicationManager } = useQueryExecution()
   
-  const wrappedExecuteQuery = (queryToExecute, forceMousePos) => {
-    executeQuery(queryToExecute, forceMousePos, mousePosRef, query)
+  const wrappedExecuteQuery = (queryToExecute = null, forceMousePos = null, mousePosRefParam = null, queryParam = null, options = {}) => {
+    // Use the provided parameters or fall back to the hook's state
+    const actualMousePosRef = mousePosRefParam || mousePosRef
+    const actualQuery = queryParam || query
+    executeQuery(queryToExecute, forceMousePos, actualMousePosRef, actualQuery, options)
   }
 
-  const { isLiveMode, toggleLiveMode, liveModeForever, setLiveModeForever } = useLiveMode(wrappedExecuteQuery, query, mousePosRef)
+  const { isLiveMode, toggleLiveMode, liveModeForever, setLiveModeForever } = useLiveMode(wrappedExecuteQuery, query, mousePosRef, endLiveModeSession)
 
   return {
     // State
@@ -37,6 +40,8 @@ export const useQQueryInterface = (canvasRef) => {
     setCanvasSize,
     liveModeForever,
     setLiveModeForever,
+    channelStatus,
+    communicationManager,
     
     // Actions
     executeQuery: wrappedExecuteQuery,
