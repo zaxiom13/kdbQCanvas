@@ -1,0 +1,723 @@
+import { useState, useEffect, useRef } from 'react'
+import { debugQResponse } from '../utils/debugUtils'
+import ArrayCanvas from './ArrayCanvas'
+
+const QQueryInterface = () => {
+  const [query, setQuery] = useState('')
+  const [result, setResult] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+  const [history, setHistory] = useState([])
+  const [connectionStatus, setConnectionStatus] = useState('unknown')
+  const [isLiveMode, setIsLiveMode] = useState(false)
+  const [liveInterval, setLiveInterval] = useState(null)
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
+  const mousePosRef = useRef({ x: 0, y: 0 })
+  const [showSettings, setShowSettings] = useState(false)
+  const [canvasSize, setCanvasSize] = useState(400)
+
+  const predefinedQueries = [
+    { label: "Simple Pattern", query: "1+1" },
+    { label: "Number Sequence", query: "til 8" },
+    { label: "Random Pixels", query: "5?10" },
+    { label: "Small Matrix", query: "2 3#til 6" },
+    { label: "Cube Data", query: "2 2 2#til 8" },
+    { label: "Checkerboard", query: "8 8#64?(0 1)" },
+    { label: "Random Matrix", query: "12 12#144?1.0" },
+    { label: "Identity Pattern", query: "6 6#1 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 1" },
+    { label: "Gradient Field", query: "16 16#(til 256)%255" },
+    { label: "Color Splash", query: "8 8 3#192?1.0" },
+    { label: "Moving Waves", query: "10 12 12#1440?1.0" },
+    { label: "RGB Animation", query: "8 6 6 3#864?1.0" },
+    { label: "Noise Field", query: "24 24#576?100" },
+    { label: "Large Canvas", query: "32 32#1024?255" },
+    { label: "Plasma Effect", query: "20 20 3#1200?(0.2 0.8)" },
+    { label: "Mouse Ripple", query: "20 20#400?(mouseX+mouseY)%100" },
+    { label: "Mouse Wave", query: "16 16#(til 256)*(mouseX%10+mouseY%10)" },
+    { label: "Mouse Color", query: "12 12 3#(mouseX*mouseY+til 432)%255" },
+  ]
+
+  // Check if query contains mouseX or mouseY
+  const containsMouseVariables = (queryText) => {
+    return queryText.includes('mouseX') || queryText.includes('mouseY')
+  }
+
+  // Track mouse position globally
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      const newPos = { x: e.clientX, y: e.clientY }
+      setMousePos(newPos)
+      mousePosRef.current = newPos // Also update ref for immediate access
+    }
+
+    document.addEventListener('mousemove', handleMouseMove)
+    return () => document.removeEventListener('mousemove', handleMouseMove)
+  }, [])
+
+  // Check backend connection on load and periodically
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        const response = await fetch('http://localhost:8080/api/health')
+        
+        if (response.ok) {
+          const data = await response.json()
+          setConnectionStatus(data.qProcessRunning ? 'connected' : 'disconnected')
+          console.log('Connection status:', data)
+        } else {
+          setConnectionStatus('error')
+          console.error('Failed to check connection:', response.statusText)
+        }
+      } catch (err) {
+        setConnectionStatus('unavailable')
+        console.error('Connection check error:', err)
+      }
+    }
+    
+    // Check on component mount
+    checkConnection()
+    
+    // Check every 10 seconds
+    const interval = setInterval(checkConnection, 10000)
+    
+    return () => clearInterval(interval)
+  }, [])
+
+  const executeQuery = async (queryToExecute = null, forceMousePos = null) => {
+    // Handle case where event object is passed instead of query string
+    const queryText = (typeof queryToExecute === 'string' ? queryToExecute : null) || query.trim()
+    if (!queryText) return
+
+    console.log('Executing query:', queryText)
+    setLoading(true)
+    setError(null)
+
+    try {
+      // Check if query contains mouse variables and prepend them
+      let finalQuery = queryText
+      if (containsMouseVariables(queryText)) {
+        // Use fresh mouse position for live mode or current state
+        const currentMousePos = forceMousePos || mousePosRef.current
+        finalQuery = `mouseX:${currentMousePos.x}; mouseY:${currentMousePos.y}; ${queryText}`
+      }
+      console.log('Final query to send:', finalQuery)
+
+      const response = await fetch('http://localhost:8080/api/query', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ query: finalQuery }),
+      })
+
+      const data = await response.json()
+      console.log('Query response:', data)
+      
+      if (response.ok) {
+        setResult(data)
+        
+        // Use the debug utility for all responses
+        debugQResponse(query.trim(), data)
+        
+        // Special handling for .z.t query
+        if (query.trim() === '.z.t') {
+          console.log('Special debug for .z.t query:', {
+            success: data.success,
+            dataType: data.dataType,
+            data: data.data,
+            error: data.error
+          })
+        }
+        
+        setHistory(prev => [{
+          query: queryText, // Use the cleaned query text, not the parameter
+          result: data,
+          timestamp: new Date().toLocaleTimeString()
+        }, ...prev.slice(0, 9)]) // Keep last 10 queries
+      } else {
+        console.error('Query execution failed:', data)
+        setError(data.message || 'Failed to execute query')
+      }
+    } catch (err) {
+      console.error('Backend connection error:', err)
+      setError('Failed to connect to backend. Make sure the server is running.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Toggle live mode
+  const toggleLiveMode = () => {
+    if (isLiveMode) {
+      // Stop live mode
+      if (liveInterval) {
+        clearInterval(liveInterval)
+        setLiveInterval(null)
+      }
+      setIsLiveMode(false)
+      setLoading(false)
+    } else {
+      // Start live mode
+      if (!containsMouseVariables(query.trim())) {
+        setError('Live mode requires mouseX or mouseY variables in your query')
+        return
+      }
+      
+      setIsLiveMode(true)
+      
+      // Execute immediately
+      executeQuery()
+      
+      // Set up interval for continuous execution with fresh mouse position
+      const interval = setInterval(() => {
+        // Use ref to get the most current mouse position
+        executeQuery(null, mousePosRef.current)
+      }, 100) // Update every 100ms for smooth interaction
+      
+      setLiveInterval(interval)
+    }
+  }
+
+  // Cleanup intervals on unmount
+  useEffect(() => {
+    return () => {
+      if (liveInterval) {
+        clearInterval(liveInterval)
+      }
+    }
+  }, [liveInterval])
+
+  // Handle keyboard shortcuts
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter' && e.ctrlKey) {
+      executeQuery()
+    }
+  }
+
+  // Helper to check if an array is flat (all elements are primitives)
+  const isFlatPrimitiveArray = arr => Array.isArray(arr) && arr.every(x => typeof x !== 'object' || x === null)
+
+  // Helper to calculate array statistics
+  const calculateArrayStats = (data) => {
+    let allValues = []
+    
+    // Flatten the array to get all numeric values
+    const flattenArray = (arr) => {
+      if (!Array.isArray(arr)) {
+        if (typeof arr === 'number' && !isNaN(arr)) {
+          allValues.push(arr)
+        }
+        return
+      }
+      arr.forEach(item => flattenArray(item))
+    }
+    
+    flattenArray(data)
+    
+    if (allValues.length === 0) return null
+    
+    const min = Math.min(...allValues)
+    const max = Math.max(...allValues)
+    const sum = allValues.reduce((a, b) => a + b, 0)
+    const avg = sum / allValues.length
+    
+    // Calculate standard deviation
+    const variance = allValues.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) / allValues.length
+    const stdDev = Math.sqrt(variance)
+    
+    return {
+      min: min.toPrecision(6),
+      max: max.toPrecision(6),
+      avg: avg.toPrecision(6),
+      stdDev: stdDev.toPrecision(6),
+      count: allValues.length
+    }
+  }
+
+  // Recursively format a flat array into nested arrays according to its shape
+  const formatArrayByShape = (flat, dims, depth = 0) => {
+    if (!Array.isArray(flat) || dims.length === 0) return flat
+    const [size, ...restDims] = dims
+    const chunkSize = restDims.reduce((a, b) => a * b, 1)
+    let out = []
+    for (let i = 0; i < size; i++) {
+      const start = i * chunkSize
+      const end = start + chunkSize
+      const chunk = flat.slice(start, end)
+      out.push(restDims.length > 0 ? formatArrayByShape(chunk, restDims, depth + 1) : chunk[0])
+    }
+    return out
+  }
+
+  // Pretty-print a nested array as compact as possible, e.g. [[[0, 1], [2, 3]], [[4, 5], [6, 7]]]
+  const compactArrayString = arr => {
+    if (!Array.isArray(arr)) return String(arr)
+    if (arr.length === 0) return '[]'
+    // If all elements are not arrays, print in one line
+    if (arr.every(x => !Array.isArray(x))) {
+      return `[${arr.join(', ')}]`
+    }
+    // Otherwise, print all subarrays in one line
+    return `[${arr.map(compactArrayString).join(', ')}]`
+  }
+
+  // Helper function to generate the box-drawing style string
+  const formatArrayWithBoxDrawing = (nestedArr, arrayShape) => {
+    if (!arrayShape || !arrayShape.dimensions || arrayShape.dimensions.length < 2) {
+      // Fallback for 1D or unknown/unsuitable shape
+      return Array.isArray(nestedArr) ? compactArrayString(nestedArr) : String(nestedArr);
+    }
+
+    const dims = arrayShape.dimensions;
+    let displayLines = [];
+
+    if (dims.length === 2) {
+      // nestedArr is arr[rows][cols], e.g., [[0,1,2],[3,4,5]]
+      nestedArr.forEach(rowArray => {
+        displayLines.push(rowArray.join(' '));
+      });
+    } else if (dims.length === 3) {
+      // nestedArr is arr[d0][d1][d2], e.g., [[[0,1],[2,3]],[[4,5],[6,7]]] for dims [2,2,2]
+      // d0 = pages, d1 = rows in page, d2 = cols in row
+      // Display as:
+      // page0_row0  page1_row0 ...
+      // page0_row1  page1_row1 ...
+      const numPages = dims[0];
+      const numRowsInPage = dims[1];
+
+      for (let r = 0; r < numRowsInPage; r++) {
+        let currentRowStringParts = [];
+        for (let p = 0; p < numPages; p++) {
+          if (nestedArr[p] && nestedArr[p][r]) {
+            currentRowStringParts.push(nestedArr[p][r].join(' '));
+          } else {
+            currentRowStringParts.push(''); // Handle jagged/incomplete data
+          }
+        }
+        displayLines.push(currentRowStringParts.join('   ')); // Double space between page data
+      }
+    } else {
+      // For > 3D or other complex shapes, fallback to compact string
+      return compactArrayString(nestedArr);
+    }
+
+    if (displayLines.length === 0 && dims.length > 0) { // check dims.length to avoid issues with empty initial array
+        if (dims.length === 2 && dims[0] === 0) return "╭─\n╯"; // Empty 2D array like 0 0#\`\`
+        if (dims.length === 3 && dims[1] === 0) return "╭─\n╯"; // Empty 3D array where middle dim is 0
+        return compactArrayString(nestedArr); // Fallback for other empty cases
+    } else if (displayLines.length === 0) {
+        return compactArrayString(nestedArr);
+    }
+
+
+    // Add box characters - all should align at the same column
+    const contentWidth = Math.max(0, ...displayLines.map(line => line.length));
+    
+    let output = ['╭─'];
+    displayLines.forEach(line => {
+      output.push(`╷ ${line}`);
+    });
+    
+    // The "╯" should align with the "╭─" and "╷" characters  
+    output.push('╯');
+    
+    return output.join('\n');
+  };
+
+  const formatResult = (data, arrayShape) => {
+    if (data === null || data === undefined) return 'null';
+    
+    // Special handling for time values
+    if (result && result.dataType === 'Time') {
+      console.log('Formatting time value:', data)
+      
+      // If data is a number, try to format it as time
+      if (typeof data === 'number') {
+        try {
+          // Try to interpret as milliseconds since midnight
+          const hours = Math.floor(data / 3600000);
+          const minutes = Math.floor((data % 3600000) / 60000);
+          const seconds = Math.floor((data % 60000) / 1000);
+          const millis = data % 1000;
+          return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(3, '0')}.${millis.toString().padStart(3, '0')}`;
+        } catch (err) {
+          console.error('Error formatting time:', err);
+        }
+      }
+      return String(data);
+    }
+    
+    if (Array.isArray(data)) {
+      const shapeInfoString = arrayShape ? [
+        `Dimensions: ${arrayShape.dimensions.join(' × ')}`,
+        `Total Elements: ${arrayShape.totalElements}`,
+        `Element Type: ${arrayShape.elementType}`,
+        arrayShape.isJagged ? '(Jagged Array)' : ''
+      ].filter(Boolean).join(' | ') : 'Array (shape unknown)';
+
+      const totalElements = arrayShape?.totalElements || data.length;
+      const isLargeArray = totalElements > 100;
+
+      let dataToFormat = data;
+      // Reshape if data is flat and shape is multi-dimensional and known
+      if (arrayShape && arrayShape.dimensions && arrayShape.dimensions.length > 1 && 
+          isFlatPrimitiveArray(data)) {
+        dataToFormat = formatArrayByShape(data, arrayShape.dimensions);
+      }
+
+      let formattedArrayString;
+      
+      if (isLargeArray) {
+        // For large arrays, show statistics instead of all values
+        const stats = calculateArrayStats(data);
+        if (stats) {
+          formattedArrayString = `Array Statistics:
+Min: ${stats.min}
+Max: ${stats.max}
+Average: ${stats.avg}
+Std Dev: ${stats.stdDev}
+Count: ${stats.count}
+
+[Array too large to display all values (${totalElements} elements)]`;
+        } else {
+          formattedArrayString = `[Large array with ${totalElements} elements - unable to calculate statistics]`;
+        }
+      } else {
+        // For smaller arrays, show the full formatted array
+        if (arrayShape && arrayShape.dimensions && arrayShape.dimensions.length >= 2) {
+          // Use box drawing for 2D+ arrays.
+          formattedArrayString = formatArrayWithBoxDrawing(dataToFormat, arrayShape);
+        } else {
+          // For 1D arrays, or if shape is not suitable for box drawing
+          formattedArrayString = compactArrayString(dataToFormat); 
+        }
+      }
+      
+      return `${shapeInfoString}\n\n${formattedArrayString}`;
+    }
+    
+    if (typeof data === 'object') {
+      try {
+        return JSON.stringify(data, null, 2)
+      } catch (err) {
+        console.error('Error stringifying object:', err)
+        return String(data)
+      }
+    }
+    
+    return String(data)
+  }
+
+  return (
+    <div className="space-y-8">
+      {/* Main Canvas Area */}
+      <div className="bg-white rounded-2xl shadow-lg border-2 border-gray-200 overflow-hidden">
+        {/* Canvas Header */}
+        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold mb-2">Visual Output</h2>
+              <p className="text-indigo-100">Your Q expressions rendered as interactive visuals</p>
+            </div>
+            <div className="flex items-center space-x-4">
+              {isLiveMode && (
+                <div className="flex items-center space-x-2 bg-red-500 bg-opacity-20 px-4 py-2 rounded-full border border-red-300">
+                  <div className="animate-pulse w-3 h-3 bg-red-300 rounded-full"></div>
+                  <span className="text-red-100 font-medium">LIVE MODE</span>
+                  <span className="text-red-200 text-sm">({mousePos.x}, {mousePos.y})</span>
+                </div>
+              )}
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className="flex items-center space-x-2 bg-white bg-opacity-20 px-4 py-2 rounded-lg hover:bg-opacity-30 transition-all duration-200"
+              >
+                <span>⚙️</span>
+                <span className="text-white font-medium">Settings</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Settings Panel */}
+        {showSettings && (
+          <div className="bg-gray-50 border-b p-6">
+            <div className="max-w-4xl mx-auto">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+                <span className="text-xl mr-2">⚙️</span>
+                Canvas Settings
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Live Mode Settings */}
+                <div className="bg-white rounded-lg p-4 border">
+                  <h4 className="font-medium text-gray-700 mb-3 flex items-center">
+                    <span className="text-lg mr-2">🔴</span>
+                    Live Mode Controls
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Enable Live Mode</span>
+                      <button
+                        onClick={toggleLiveMode}
+                        disabled={!containsMouseVariables(query.trim())}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 ${
+                          isLiveMode ? 'bg-green-600' : 'bg-gray-300'
+                        } disabled:opacity-50 disabled:cursor-not-allowed`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-200 ${
+                          isLiveMode ? 'translate-x-6' : 'translate-x-1'
+                        }`} />
+                      </button>
+                    </div>
+                    {!containsMouseVariables(query.trim()) && (
+                      <p className="text-xs text-orange-600">
+                        ⚠️ Live mode requires mouseX or mouseY variables in your query
+                      </p>
+                    )}
+                    {isLiveMode && (
+                      <div className="text-xs text-green-600 bg-green-50 p-2 rounded">
+                        ✓ Live mode active - canvas updates with mouse movement
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Canvas Size Settings */}
+                <div className="bg-white rounded-lg p-4 border">
+                  <h4 className="font-medium text-gray-700 mb-3 flex items-center">
+                    <span className="text-lg mr-2">📐</span>
+                    Canvas Size
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Size: {canvasSize}px</span>
+                      <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                        {canvasSize}×{canvasSize}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="200"
+                      max="800"
+                      step="50"
+                      value={canvasSize}
+                      onChange={(e) => setCanvasSize(parseInt(e.target.value))}
+                      className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
+                      style={{
+                        background: `linear-gradient(to right, #4f46e5 0%, #4f46e5 ${((canvasSize - 200) / 600) * 100}%, #e5e7eb ${((canvasSize - 200) / 600) * 100}%, #e5e7eb 100%)`
+                      }}
+                    />
+                    <div className="flex justify-between text-xs text-gray-400">
+                      <span>200px</span>
+                      <span>500px</span>
+                      <span>800px</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Canvas Content */}
+        <div className="p-8">
+          {result && result.success && 
+           Array.isArray(result.data) && 
+           result.arrayShape && 
+           result.arrayShape.dimensions && 
+           result.arrayShape.dimensions.length >= 2 && 
+           result.arrayShape.dimensions.length <= 4 ? (
+            <div className="flex justify-center">
+              <ArrayCanvas 
+                data={result.data} 
+                arrayShape={result.arrayShape}
+                maxCanvasSize={canvasSize}
+              />
+            </div>
+          ) : (
+            <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+              <div className="text-center">
+                <div className="text-6xl mb-4">🎨</div>
+                <h3 className="text-xl font-semibold text-gray-600 mb-2">Canvas Ready</h3>
+                <p className="text-gray-500 max-w-md">
+                  Execute a Q expression that generates 2D-4D arrays to see visual output here.
+                  Try the predefined queries below to get started!
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Query Input Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Query Interface - Takes 2/3 width on large screens */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Query Input */}
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+              <span className="text-2xl mr-2">⚡</span>
+              Q Expression Editor
+            </h3>
+            <div className="space-y-4">
+              <div className="relative">
+                <textarea
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Enter your Q expression here... (e.g., 8 8#64?1.0 for a random matrix)"
+                  className="w-full p-4 border rounded-lg font-mono text-sm resize-none h-24 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  disabled={loading}
+                />
+                <div className="absolute bottom-2 right-2 text-xs text-gray-400">
+                  Ctrl+Enter to execute
+                </div>
+              </div>
+              <div className="flex space-x-3">
+                <button
+                  onClick={executeQuery}
+                  disabled={loading || !query.trim()}
+                  className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 px-6 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 flex items-center justify-center space-x-2"
+                >
+                  {loading && !isLiveMode ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Executing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>▶</span>
+                      <span>Execute Q Expression</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Creative Examples */}
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+              <span className="text-2xl mr-2">🎯</span>
+              Creative Examples
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {predefinedQueries.map((predefined, index) => (
+                <button
+                  key={index}
+                  onClick={() => setQuery(predefined.query)}
+                  className="p-3 text-left bg-gray-50 hover:bg-indigo-50 border border-gray-200 hover:border-indigo-300 rounded-lg transition-all duration-200 group"
+                >
+                  <div className="font-medium text-sm text-gray-800 group-hover:text-indigo-700">
+                    {predefined.label}
+                  </div>
+                  <div className="text-xs text-gray-500 font-mono mt-1 group-hover:text-indigo-600">
+                    {predefined.query}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Sidebar - Status and Results */}
+        <div className="space-y-6">
+          {/* Connection Status */}
+          <div className="bg-white rounded-lg shadow-sm border p-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Connection Status</h3>
+            <div className="flex items-center space-x-3 mb-4">
+              <div className={`w-3 h-3 rounded-full ${
+                connectionStatus === 'connected' ? 'bg-green-500' :
+                connectionStatus === 'disconnected' ? 'bg-yellow-500' :
+                connectionStatus === 'error' ? 'bg-red-500' : 'bg-gray-400'
+              }`}></div>
+              <span className="text-sm text-gray-600">
+                {connectionStatus === 'connected' ? 'Connected' :
+                 connectionStatus === 'disconnected' ? 'Q Process Not Running' :
+                 connectionStatus === 'error' ? 'Error' :
+                 connectionStatus === 'unavailable' ? 'Unavailable' : 'Unknown'}
+              </span>
+            </div>
+            <p className="text-xs text-gray-500">
+              {connectionStatus !== 'connected' && 
+                'Make sure your Kotlin backend is running on port 8080'}
+              {connectionStatus === 'connected' &&
+                'Ready to execute Q expressions'}
+            </p>
+          </div>
+
+          {/* Text Results */}
+          {result && (
+            <div className="bg-white rounded-lg shadow-sm border p-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Text Output</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    result.success 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-red-100 text-red-800'
+                  }`}>
+                    {result.success ? 'Success' : 'Error'}
+                  </span>
+                  <span className="text-sm text-gray-500">
+                    Type: {result.dataType || 'unknown'}
+                  </span>
+                </div>
+                
+                <div className="p-3 bg-gray-50 rounded border max-h-64 overflow-y-auto">
+                  <pre className="text-xs font-mono whitespace-pre-wrap">
+                    {result.success 
+                      ? formatResult(result.data, result.arrayShape)
+                      : result.error || 'Unknown error'
+                    }
+                  </pre>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Error Display */}
+          {error && (
+            <div className="bg-white rounded-lg shadow-sm border p-6">
+              <h3 className="text-lg font-semibold text-red-600 mb-4">Error</h3>
+              <div className="p-3 bg-red-50 border border-red-200 rounded">
+                <p className="text-sm text-red-700">{error}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* History Section */}
+      <div className="bg-white rounded-lg shadow-sm border p-6">
+        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
+          <span className="text-2xl mr-2">📜</span>
+          Expression History
+        </h3>
+        {history.length === 0 ? (
+          <p className="text-gray-500 text-sm">No expressions executed yet</p>
+        ) : (
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {history.slice(-10).reverse().map((item, index) => (
+              <div key={index} className="p-3 bg-gray-50 rounded border hover:bg-gray-100 transition-colors duration-200">
+                <div className="flex items-center justify-between">
+                  <code className="text-sm font-mono text-indigo-600">{item.query}</code>
+                  <button
+                    onClick={() => setQuery(item.query)}
+                    className="text-xs text-gray-500 hover:text-indigo-600 px-2 py-1 rounded hover:bg-white transition-all duration-200"
+                  >
+                    Rerun
+                  </button>
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  {item.timestamp} • {item.result.success ? 'Success' : 'Error'}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default QQueryInterface

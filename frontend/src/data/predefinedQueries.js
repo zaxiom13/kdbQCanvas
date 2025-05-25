@@ -1,0 +1,21 @@
+export const predefinedQueries = [
+  { label: "Simple Pattern", query: "1+1" },
+  { label: "Number Sequence", query: "til 8" },
+  { label: "Random Pixels", query: "5?10" },
+  { label: "Small Matrix", query: "2 3#til 6" },
+  { label: "Cube Data", query: "2 2 2#til 8" },
+  { label: "Checkerboard", query: "8 8#64?(0 1)" },
+  { label: "Random Matrix", query: "12 12#144?1.0" },
+  { label: "Identity Pattern", query: "6 6#1 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 1 0 0 0 0 0 0 1" },
+  { label: "Gradient Field", query: "16 16#(til 256)%255" },
+  { label: "Color Splash", query: "8 8 3#192?1.0" },
+  { label: "Moving Waves", query: "10 12 12#1440?1.0" },
+  { label: "RGB Animation", query: "8 6 6 3#864?1.0" },
+  { label: "Noise Field", query: "24 24#576?100" },
+  { label: "Large Canvas", query: "32 32#1024?255" },
+  { label: "Plasma Effect", query: "20 20 3#1200?(0.2 0.8)" },
+  { label: "Mouse Ripple", query: "20 20#400?(mouseX+mouseY)%100" },
+  { label: "Mouse Wave", query: "16 16#(til 256)*(mouseX%10+mouseY%10)" },
+  { label: "Mouse Color", query: "12 12 3#(mouseX*mouseY+til 432)%255" },
+  { label: "Mouse Pointer", query: "z: 100; 10 < sum {x*x} (z*(mouseX;mouseY)) - flip flip each flip (z;z) # (til z)  cross  til z" }
+]
