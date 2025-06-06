@@ -1,1 +1,248 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
 @import "tailwindcss";
+
+/* Fantasy Console Theme */
+:root {
+  /* PICO-8 inspired palette */
+  --console-bg: #1d2b53;
+  --console-dark: #0f0f23;
+  --console-panel: #2c3e50;
+  --console-border: #7e2553;
+  --console-accent: #ff004d;
+  --console-neon: #00e436;
+  --console-text: #fff1e8;
+  --console-dim: #83769c;
+  --console-warning: #ffcc95;
+  --console-blue: #29adff;
+  --console-purple: #b83dba;
+  --console-orange: #ff6c24;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'JetBrains Mono', 'Courier New', monospace;
+  background: var(--console-dark);
+  color: var(--console-text);
+  margin: 0;
+  padding: 0;
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
+/* CRT Scanlines Effect */
+.crt-container {
+  position: relative;
+  background: var(--console-dark);
+  min-height: 100vh;
+}
+
+.crt-container::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    transparent 50%,
+    rgba(0, 255, 0, 0.03) 50%
+  );
+  background-size: 100% 4px;
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* Pixel perfect borders */
+.pixel-border {
+  border: 2px solid var(--console-border);
+  border-image: 
+    url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='4' height='4'><rect width='1' height='1' fill='%237e2553'/><rect x='1' width='1' height='1' fill='%237e2553'/><rect x='2' width='1' height='1' fill='%237e2553'/><rect x='3' width='1' height='1' fill='%237e2553'/><rect y='1' width='1' height='1' fill='%237e2553'/><rect x='3' y='1' width='1' height='1' fill='%237e2553'/><rect y='2' width='1' height='1' fill='%237e2553'/><rect x='3' y='2' width='1' height='1' fill='%237e2553'/><rect y='3' width='1' height='1' fill='%237e2553'/><rect x='1' y='3' width='1' height='1' fill='%237e2553'/><rect x='2' y='3' width='1' height='1' fill='%237e2553'/><rect x='3' y='3' width='1' height='1' fill='%237e2553'/></svg>") 2;
+}
+
+/* Neon glow effects */
+.neon-text {
+  color: var(--console-neon);
+  text-shadow: 
+    0 0 5px var(--console-neon),
+    0 0 10px var(--console-neon),
+    0 0 15px var(--console-neon);
+}
+
+.neon-accent {
+  color: var(--console-accent);
+  text-shadow: 
+    0 0 5px var(--console-accent),
+    0 0 10px var(--console-accent);
+}
+
+/* Terminal window styling */
+.terminal-window {
+  background: var(--console-bg);
+  border: 2px solid var(--console-border);
+  border-radius: 0;
+  box-shadow: 
+    0 0 0 1px var(--console-dark),
+    0 4px 8px rgba(0, 0, 0, 0.8),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.terminal-header {
+  background: var(--console-panel);
+  border-bottom: 1px solid var(--console-border);
+  padding: 8px 12px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.terminal-dots {
+  display: flex;
+  gap: 4px;
+}
+
+.terminal-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.terminal-dot.red { background: var(--console-accent); }
+.terminal-dot.yellow { background: var(--console-warning); }
+.terminal-dot.green { background: var(--console-neon); }
+
+/* Console buttons */
+.console-btn {
+  background: var(--console-panel);
+  border: 1px solid var(--console-border);
+  color: var(--console-text);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.console-btn:hover {
+  background: var(--console-border);
+  box-shadow: 0 0 8px rgba(255, 0, 77, 0.5);
+}
+
+.console-btn:active {
+  transform: translate(1px, 1px);
+}
+
+.console-btn.primary {
+  background: var(--console-accent);
+  border-color: var(--console-accent);
+}
+
+.console-btn.primary:hover {
+  background: var(--console-orange);
+  border-color: var(--console-orange);
+}
+
+.console-btn.small {
+  font-size: 10px;
+  padding: 4px 8px;
+}
+
+/* Retro input styling */
+.console-input {
+  background: var(--console-dark);
+  border: 1px solid var(--console-border);
+  color: var(--console-text);
+  font-family: inherit;
+  padding: 8px;
+  font-size: 13px;
+}
+
+.console-input:focus {
+  outline: none;
+  border-color: var(--console-neon);
+  box-shadow: 0 0 8px rgba(0, 228, 54, 0.3);
+}
+
+/* Status indicators */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.status-dot.connected { background: var(--console-neon); animation: pulse 2s infinite; }
+.status-dot.disconnected { background: var(--console-accent); }
+.status-dot.loading { background: var(--console-warning); animation: blink 1s infinite; }
+
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+/* Canvas styling */
+.pixel-canvas {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+  border: 1px solid var(--console-border);
+  background: var(--console-dark);
+}
+
+/* History item styling */
+.history-item {
+  background: var(--console-dark);
+  border: 1px solid var(--console-border);
+  padding: 8px;
+  margin-bottom: 4px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  font-size: 10px;
+}
+
+.history-item:hover {
+  border-color: var(--console-neon);
+  background: var(--console-panel);
+  box-shadow: 0 0 4px rgba(0, 228, 54, 0.3);
+}
+
+.history-item.success {
+  border-left: 3px solid var(--console-neon);
+}
+
+.history-item.error {
+  border-left: 3px solid var(--console-accent);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--console-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--console-border);
+  border-radius: 0;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--console-accent);
+}

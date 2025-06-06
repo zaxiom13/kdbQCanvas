@@ -1,38 +1,78 @@
 import React from 'react'
 
 const ConnectionStatus = ({ connectionStatus }) => {
-  const getStatusColor = () => {
+  const getStatusInfo = () => {
     switch (connectionStatus) {
-      case 'connected': return 'bg-green-500'
-      case 'disconnected': return 'bg-yellow-500'
-      case 'error': return 'bg-red-500'
-      default: return 'bg-gray-400'
+      case 'connected': 
+        return { 
+          color: 'connected',
+          text: 'KDB+ ONLINE',
+          symbol: '●'
+        }
+      case 'disconnected': 
+        return { 
+          color: 'disconnected',
+          text: 'KDB+ OFFLINE',
+          symbol: '○'
+        }
+      case 'error': 
+        return { 
+          color: 'disconnected',
+          text: 'CONNECTION ERROR',
+          symbol: '✗'
+        }
+      case 'unavailable': 
+        return { 
+          color: 'loading',
+          text: 'SERVICE UNAVAILABLE',
+          symbol: '△'
+        }
+      default: 
+        return { 
+          color: 'loading',
+          text: 'STATUS UNKNOWN',
+          symbol: '?'
+        }
     }
   }
 
-  const getStatusText = () => {
-    switch (connectionStatus) {
-      case 'connected': return 'Connected'
-      case 'disconnected': return 'Q Process Not Running'
-      case 'error': return 'Error'
-      case 'unavailable': return 'Unavailable'
-      default: return 'Unknown'
-    }
-  }
+  const status = getStatusInfo()
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border p-6">
-      <h3 className="text-lg font-semibold text-gray-800 mb-4">Connection Status</h3>
-      <div className="flex items-center space-x-3 mb-4">
-        <div className={`w-3 h-3 rounded-full ${getStatusColor()}`}></div>
-        <span className="text-sm text-gray-600">{getStatusText()}</span>
+    <div className="space-y-3">
+      {/* Main status */}
+      <div className="text-xs font-mono text-console-neon flex items-center space-x-2">
+        <span>►</span>
+        <span>CONNECTION</span>
       </div>
-      <p className="text-xs text-gray-500">
-        {connectionStatus !== 'connected' && 
-          'Make sure your Kotlin backend is running on port 8080'}
-        {connectionStatus === 'connected' &&
-          'Ready to execute Q expressions'}
-      </p>
+      
+      <div className="space-y-2">
+        <div className="flex items-center space-x-2 text-xs font-mono">
+          <div className={`status-dot ${status.color}`}></div>
+          <span className="text-console-text">{status.text}</span>
+        </div>
+        
+        {/* Detailed status */}
+        <div className="text-xs font-mono text-console-dim space-y-1">
+          {connectionStatus !== 'connected' && (
+            <div className="text-console-warning">
+              └─ BACKEND:8080 REQUIRED
+            </div>
+          )}
+          {connectionStatus === 'connected' && (
+            <div className="text-console-neon">
+              └─ READY FOR QUERIES
+            </div>
+          )}
+        </div>
+        
+        {/* System info */}
+        <div className="mt-3 pt-2 border-t border-console-border text-xs font-mono text-console-dim">
+          <div>PROTO: HTTP/WS</div>
+          <div>PORT: 8080/8081</div>
+          <div>MODE: DUAL-BAND</div>
+        </div>
+      </div>
     </div>
   )
 }

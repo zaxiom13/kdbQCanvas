@@ -18,67 +18,82 @@ const CanvasDisplay = forwardRef(({ result, canvasSize }, ref) => {
     }
   }, [shouldShowCanvas])
 
-  // If there's visual content, show it
+  // If there's visual content, show it with pixel-perfect styling
   if (shouldShowCanvas) {
     return (
-      <div className="flex justify-center">
-        <ArrayCanvas 
-          ref={ref}
-          data={result.data} 
-          arrayShape={result.arrayShape}
-          maxCanvasSize={canvasSize}
-        />
+      <div className="flex justify-center bg-console-dark p-2">
+        <div className="pixel-canvas">
+          <ArrayCanvas 
+            ref={ref}
+            data={result.data} 
+            arrayShape={result.arrayShape}
+            maxCanvasSize={canvasSize}
+          />
+        </div>
       </div>
     )
   }
 
-  // If canvas is empty and collapsed, show minimal view
+  // If canvas is empty and collapsed, show retro minimal view
   if (isCollapsed) {
     return (
-      <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-300 hover:border-gray-400 transition-colors">
+      <div className="flex items-center justify-between p-3 bg-console-dark border border-console-border">
         <div className="flex items-center space-x-3">
-          <div className="text-2xl">🎨</div>
+          <div className="text-lg font-mono text-console-neon">█▓</div>
           <div>
-            <h3 className="text-sm font-medium text-gray-600">Visual Output Area</h3>
-            <p className="text-xs text-gray-500">Ready for 2D-4D array visualization</p>
+            <h3 className="text-xs font-mono text-console-text">DISPLAY BUFFER</h3>
+            <p className="text-xs font-mono text-console-dim">READY FOR 2D-4D ARRAYS</p>
           </div>
         </div>
         <button
           onClick={() => setIsCollapsed(false)}
-          className="flex items-center space-x-2 px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+          className="console-btn small"
         >
-          <span>Expand</span>
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
+          EXPAND
         </button>
       </div>
     )
   }
 
-  // If canvas is empty and expanded, show full placeholder
+  // If canvas is empty and expanded, show full retro placeholder
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-gray-700">Visual Output Area</h3>
+        <div className="text-xs font-mono text-console-neon flex items-center space-x-2">
+          <span>►</span>
+          <span>DISPLAY BUFFER ACTIVE</span>
+        </div>
         <button
           onClick={() => setIsCollapsed(true)}
-          className="flex items-center space-x-2 px-3 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm"
+          className="console-btn small"
         >
-          <span>Collapse</span>
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-          </svg>
+          COLLAPSE
         </button>
       </div>
-      <div className="flex items-center justify-center h-64 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
-        <div className="text-center">
-          <div className="text-6xl mb-4">🎨</div>
-          <h3 className="text-xl font-semibold text-gray-600 mb-2">Canvas Ready</h3>
-          <p className="text-gray-500 max-w-md">
-            Execute a Q expression that generates 2D-4D arrays to see visual output here.
-            Try the predefined queries below to get started!
-          </p>
+      
+      <div className="flex items-center justify-center h-64 bg-console-dark border border-console-border relative">
+        {/* Retro CRT noise pattern */}
+        <div className="absolute inset-0 opacity-20" style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%23${process.env.NODE_ENV === 'development' ? '83769c' : '83769c'}' fill-opacity='0.1' d='M1 3h1v1H1V3zm2-2h1v1H3V1z'%3E%3C/path%3E%3C/svg%3E")`,
+          backgroundRepeat: 'repeat'
+        }}></div>
+        
+        <div className="text-center relative z-10">
+          <div className="text-4xl mb-4 font-mono text-console-dim">
+            ▓▓▓
+          </div>
+          <div className="text-xs font-mono text-console-neon mb-2">CANVAS INITIALIZED</div>
+          <div className="text-xs font-mono text-console-dim max-w-md">
+            EXECUTE Q EXPRESSION WITH 2D-4D ARRAYS
+          </div>
+          <div className="text-xs font-mono text-console-dim mt-1">
+            TRY DEMO CARTRIDGES FOR EXAMPLES
+          </div>
+          
+          {/* Blinking cursor */}
+          <div className="mt-4 flex justify-center">
+            <span className="text-console-neon animate-pulse font-mono">█</span>
+          </div>
         </div>
       </div>
     </div>

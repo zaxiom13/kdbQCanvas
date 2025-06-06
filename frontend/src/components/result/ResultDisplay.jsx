@@ -36,167 +36,138 @@ const ResultDisplay = ({ result, error }) => {
 
     const formatErrorType = (errorType) => {
       const typeMap = {
-        'SYNTAX_ERROR': 'Q Syntax Error',
-        'TYPE_ERROR': 'Data Type Error', 
-        'UNDEFINED_VARIABLE': 'Undefined Variable',
-        'DIMENSION_ERROR': 'Array Dimension Error',
-        'MEMORY_ERROR': 'Memory Error',
-        'IO_ERROR': 'Input/Output Error',
-        'CONNECTION_ERROR': 'Connection Error',
-        'PARSE_ERROR': 'Parse Error',
-        'NETWORK_ERROR': 'Network Error',
-        'SERIALIZATION_ERROR': 'Serialization Error',
-        'GENERAL_ERROR': 'General Error'
+        'SYNTAX_ERROR': 'Q SYNTAX ERROR',
+        'TYPE_ERROR': 'DATA TYPE ERROR', 
+        'UNDEFINED_VARIABLE': 'UNDEFINED VARIABLE',
+        'DIMENSION_ERROR': 'ARRAY DIMENSION ERROR',
+        'MEMORY_ERROR': 'MEMORY ERROR',
+        'IO_ERROR': 'INPUT/OUTPUT ERROR',
+        'CONNECTION_ERROR': 'CONNECTION ERROR',
+        'PARSE_ERROR': 'PARSE ERROR',
+        'NETWORK_ERROR': 'NETWORK ERROR',
+        'SERIALIZATION_ERROR': 'SERIALIZATION ERROR',
+        'GENERAL_ERROR': 'GENERAL ERROR'
       }
       return typeMap[errorType] || errorType.replace(/_/g, ' ')
     }
 
     // Fallback client-side parsing (for backwards compatibility)
     const parseErrorMessage = (message) => {
-      if (!message) return { type: 'Unknown Error', details: 'No error details available', suggestions: [] }
+      if (!message) return { type: 'UNKNOWN ERROR', details: 'NO ERROR DETAILS AVAILABLE', suggestions: [] }
       
       if (message.includes('KDB+') || message.includes('Q KException')) {
         return {
-          type: 'Q/KDB+ Error',
+          type: 'Q/KDB+ ERROR',
           details: message,
           suggestions: [
-            'Check Q syntax and function names',
-            'Verify variable names and table references',
-            'Ensure proper data types and dimensions'
+            'CHECK Q SYNTAX AND FUNCTION NAMES',
+            'VERIFY VARIABLE NAMES AND TABLE REFS',
+            'ENSURE PROPER DATA TYPES'
           ]
         }
       }
       
       if (message.includes('Connection failed') || message.includes('IO error')) {
         return {
-          type: 'Connection Error',
+          type: 'CONNECTION ERROR',
           details: message,
           suggestions: [
-            'Check if the Q process is running',
-            'Verify backend server is accessible on port 8080',
-            'Check network connectivity'
+            'CHECK IF Q PROCESS IS RUNNING',
+            'VERIFY BACKEND ON PORT 8080',
+            'CHECK NETWORK CONNECTIVITY'
           ]
         }
       }
       
       if (message.includes('mouseX') || message.includes('mouseY')) {
         return {
-          type: 'Live Mode Error',
+          type: 'LIVE MODE ERROR',
           details: message,
           suggestions: [
-            'Enable live mode for mouse-dependent queries',
-            'Ensure mouseX and mouseY variables are used correctly'
+            'ENABLE LIVE MODE FOR MOUSE QUERIES',
+            'VERIFY MX,MY VARIABLE USAGE'
           ]
         }
       }
 
       return {
-        type: 'Error',
+        type: 'ERROR',
         details: message,
-        suggestions: ['Check query syntax', 'Try a simpler expression']
+        suggestions: ['CHECK QUERY SYNTAX', 'TRY SIMPLER EXPRESSION']
       }
     }
 
     const errorInfo = getErrorInfo()
 
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-red-200 p-6">
-        <h3 className="text-lg font-semibold text-red-700 mb-4 flex items-center">
-          <span className="text-2xl mr-2">❌</span>
-          Query Execution Error
-        </h3>
+      <div className="space-y-3">
+        {/* Error Header */}
+        <div className="text-xs font-mono text-console-accent flex items-center space-x-2">
+          <span>►</span>
+          <span>ERROR REPORT</span>
+        </div>
         
-        <div className="space-y-4">
-          {/* Error Type and Main Details */}
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-sm font-medium text-red-800">
+        <div className="space-y-3">
+          {/* Main Error Display */}
+          <div className="border border-console-accent p-3 space-y-2">
+            <div className="flex items-center justify-between text-xs font-mono">
+              <span className="text-console-accent">
                 {errorInfo.type}
               </span>
               <div className="flex items-center space-x-2">
                 {errorInfo.errorCode && (
-                  <span className="text-xs text-red-600 bg-red-200 px-2 py-1 rounded font-mono">
+                  <span className="text-console-warning bg-console-dark px-1 border border-console-warning">
                     {errorInfo.errorCode}
                   </span>
                 )}
-                <span className="text-xs text-red-600 bg-red-100 px-2 py-1 rounded">
-                  {errorType}
+                <span className="text-console-dim">
+                  {errorTimestamp}
                 </span>
               </div>
             </div>
             
             {errorInfo.location && (
-              <div className="text-sm text-red-700 mb-2">
-                <strong>Location:</strong> {errorInfo.location}
+              <div className="text-xs font-mono text-console-warning">
+                LOC: {errorInfo.location}
               </div>
             )}
             
-            <div className="text-sm text-red-600 font-mono bg-red-100 p-3 rounded border max-h-32 overflow-y-auto">
+            <div className="text-xs font-mono text-console-text bg-console-dark p-2 border border-console-border max-h-24 overflow-y-auto">
               {errorInfo.details}
             </div>
           </div>
 
-          {/* Horizontal Layout for Help Sections */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          {/* Error Analysis */}
+          <div className="grid grid-cols-1 gap-3 text-xs font-mono">
             {/* Suggestions */}
             {errorInfo.suggestions && errorInfo.suggestions.length > 0 && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <h4 className="text-sm font-medium text-yellow-800 mb-2 flex items-center">
-                  <span className="mr-1">💡</span>
-                  Suggestions
-                </h4>
-                <ul className="text-sm text-yellow-700 space-y-1">
+              <div className="border border-console-warning p-2">
+                <div className="text-console-warning mb-1">SUGGESTIONS:</div>
+                <div className="text-console-dim space-y-1">
                   {errorInfo.suggestions.map((suggestion, index) => (
-                    <li key={index} className="flex items-start">
-                      <span className="mr-2 text-yellow-500 flex-shrink-0">•</span>
-                      <span className="break-words">{suggestion}</span>
-                    </li>
+                    <div key={index} className="flex items-start">
+                      <span className="mr-1 text-console-warning">•</span>
+                      <span>{suggestion}</span>
+                    </div>
                   ))}
-                </ul>
+                </div>
               </div>
             )}
 
             {/* Documentation Link */}
             {errorInfo.relatedDocs && (
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <h4 className="text-sm font-medium text-blue-800 mb-2 flex items-center">
-                  <span className="mr-1">📚</span>
-                  Documentation
-                </h4>
+              <div className="border border-console-blue p-2">
+                <div className="text-console-blue mb-1">DOCUMENTATION:</div>
                 <a 
                   href={errorInfo.relatedDocs} 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  className="text-sm text-blue-700 hover:text-blue-900 underline block"
+                  className="text-console-neon hover:text-console-accent underline"
                 >
-                  View Q Documentation →
+                  VIEW Q DOCS →
                 </a>
-                <p className="text-xs text-blue-600 mt-2">
-                  External reference for this error type
-                </p>
               </div>
             )}
-
-            {/* Quick Actions */}
-            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-              <h4 className="text-sm font-medium text-green-800 mb-2 flex items-center">
-                <span className="mr-1">🔧</span>
-                Quick Actions
-              </h4>
-              <div className="text-sm text-green-700 space-y-1">
-                <div>• Try predefined queries</div>
-                <div>• Check Q syntax</div>
-                <div>• Use Ctrl+Enter to execute</div>
-                {result && !result.success && (
-                  <div>• Check browser console</div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Error Timestamp */}
-          <div className="text-xs text-gray-500 text-center border-t pt-2">
-            Error occurred at {errorTimestamp}
           </div>
         </div>
       </div>
@@ -205,14 +176,14 @@ const ResultDisplay = ({ result, error }) => {
 
   if (!result) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border p-6">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-          <span className="text-2xl mr-2">📊</span>
-          Result Output
-        </h3>
-        <div className="text-center py-8">
-          <div className="text-6xl mb-4">🔍</div>
-          <p className="text-gray-500">Execute a Q expression to see results here</p>
+      <div className="space-y-3">
+        <div className="text-xs font-mono text-console-neon flex items-center space-x-2">
+          <span>►</span>
+          <span>OUTPUT BUFFER</span>
+        </div>
+        <div className="text-center py-8 text-console-dim">
+          <div className="text-2xl mb-2 font-mono">[ EMPTY ]</div>
+          <div className="text-xs font-mono">AWAITING QUERY EXECUTION</div>
         </div>
       </div>
     )
@@ -221,47 +192,35 @@ const ResultDisplay = ({ result, error }) => {
   const stats = Array.isArray(result.data) ? calculateArrayStats(result.data) : null
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border p-6">
-      <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-        <span className="text-2xl mr-2">📊</span>
-        Result Output
+    <div className="space-y-3">
+      {/* Output Header */}
+      <div className="text-xs font-mono text-console-neon flex items-center space-x-2">
+        <span>►</span>
+        <span>QUERY RESULT</span>
         {result.success && (
-          <span className="ml-2 text-sm bg-green-100 text-green-800 px-2 py-1 rounded-full">
-            Success
+          <span className="text-console-neon">
+            [OK]
           </span>
         )}
-      </h3>
+      </div>
       
+      {/* Array Statistics */}
       {stats && (
-        <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-          <h4 className="text-sm font-medium text-blue-800 mb-2">Array Statistics</h4>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
-            <div>
-              <span className="text-blue-600 font-medium">Min:</span>
-              <span className="ml-1">{stats.min}</span>
-            </div>
-            <div>
-              <span className="text-blue-600 font-medium">Max:</span>
-              <span className="ml-1">{stats.max}</span>
-            </div>
-            <div>
-              <span className="text-blue-600 font-medium">Avg:</span>
-              <span className="ml-1">{stats.avg}</span>
-            </div>
-            <div>
-              <span className="text-blue-600 font-medium">StdDev:</span>
-              <span className="ml-1">{stats.stdDev}</span>
-            </div>
-            <div>
-              <span className="text-blue-600 font-medium">Count:</span>
-              <span className="ml-1">{stats.count}</span>
-            </div>
+        <div className="border border-console-blue p-2">
+          <div className="text-xs font-mono text-console-blue mb-1">ARRAY STATS:</div>
+          <div className="grid grid-cols-5 gap-2 text-xs font-mono text-console-dim">
+            <div>MIN: {stats.min}</div>
+            <div>MAX: {stats.max}</div>
+            <div>AVG: {stats.avg}</div>
+            <div>STD: {stats.stdDev}</div>
+            <div>CNT: {stats.count}</div>
           </div>
         </div>
       )}
 
-      <div className="bg-gray-50 rounded-lg p-4 border">
-        <pre className="text-sm text-gray-800 whitespace-pre-wrap font-mono overflow-auto max-h-96">
+      {/* Result Data */}
+      <div className="bg-console-dark border border-console-border p-3">
+        <pre className="text-xs font-mono text-console-text whitespace-pre-wrap overflow-auto max-h-64 leading-relaxed">
           {formatResult(result.data, result.arrayShape, result)}
         </pre>
       </div>

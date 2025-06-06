@@ -16,13 +16,14 @@ const SettingsPanel = ({
   if (!showSettings) return null
 
   return (
-    <div className="bg-gray-50 border-b p-6">
-      <div className="max-w-4xl mx-auto">
-        <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-          <span className="text-xl mr-2">⚙️</span>
-          Canvas Settings
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="bg-console-panel border border-console-border p-3 mb-3">
+      <div className="space-y-3">
+        <div className="text-xs font-mono text-console-neon flex items-center space-x-2">
+          <span>►</span>
+          <span>CONTROL PANEL</span>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <LiveModeControls 
             isLiveMode={isLiveMode}
             toggleLiveMode={toggleLiveMode}

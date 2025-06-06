@@ -3,27 +3,59 @@ import './App.css'
 
 function App() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 py-4 px-2 font-sans">
-      <div className="w-full max-w-none">
-        <header className="text-center mb-6">
-          <h1 className="text-6xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-4">
-            Q Canvas
-          </h1>
-          <p className="text-2xl text-gray-700 mb-2">
-            Creative Coding with KDB+/Q
-          </p>
-          <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-            Transform data into visual art. Write Q expressions to generate arrays, matrices, and animations that come alive on the canvas.
-          </p>
-        </header>
-        <main>
-          <QQueryInterface />
-        </main>
-        <footer className="text-center mt-8 pt-6 border-t border-gray-300">
-          <p className="text-sm text-gray-500">
-            &copy; 2025 Q Canvas - Where Data Meets Art
-          </p>
-        </footer>
+    <div className="crt-container min-h-screen">
+      {/* Console Boot Screen Header */}
+      <div className="terminal-window mx-4 mt-4 mb-6">
+        <div className="terminal-header">
+          <div className="terminal-dots">
+            <div className="terminal-dot red"></div>
+            <div className="terminal-dot yellow"></div>
+            <div className="terminal-dot green"></div>
+          </div>
+          <div className="text-xs font-mono">QCANVAS-OS v2.1.0</div>
+        </div>
+        
+        <div className="p-6 text-center">
+          <div className="mb-4">
+            <pre className="text-sm neon-text leading-tight">
+{`
+  ██████  ██████  █████  ███    ██ ██    ██  █████  ███████ 
+ ██    ██ ██      ██   ██ ████   ██ ██    ██ ██   ██ ██      
+ ██    ██ ██      ███████ ██ ██  ██ ██    ██ ███████ ███████ 
+ ██ ▄▄ ██ ██      ██   ██ ██  ██ ██  ██  ██  ██   ██      ██ 
+  ██████  ██████  ██   ██ ██   ████   ████   ██   ██ ███████ 
+     ▀▀                                                     
+`}
+            </pre>
+          </div>
+          
+          <div className="space-y-2 text-xs font-mono">
+            <div className="neon-accent">► KDB+/Q FANTASY CONSOLE ◄</div>
+            <div className="text-console-dim">Transform data into pixel art • Real-time canvas rendering</div>
+            <div className="text-console-warning">DUAL-BAND COMMUNICATION PROTOCOL ENABLED</div>
+          </div>
+          
+          <div className="mt-4 text-xs font-mono text-console-dim">
+            <div>MEMORY: 64K • DISPLAY: 128x128 • SOUND: 4 CHANNELS</div>
+            <div className="mt-1">READY.</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Interface */}
+      <main className="px-4 pb-4">
+        <QQueryInterface />
+      </main>
+
+      {/* Console Footer */}
+      <div className="text-center p-4 text-xs font-mono text-console-dim border-t border-console-border mt-8">
+        <div className="flex justify-center items-center space-x-4">
+          <span>QCANVAS-OS</span>
+          <span>•</span>
+          <span>BUILD 2025.01</span>
+          <span>•</span>
+          <span className="neon-text">SYSTEM READY</span>
+        </div>
       </div>
     </div>
   )

@@ -9,56 +9,79 @@ const QueryEditor = ({ query, setQuery, loading, executeQuery, isLiveMode, toggl
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border p-6">
-      <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center">
-        <span className="text-2xl mr-2">⚡</span>
-        Q Expression Editor
-      </h3>
-      <div className="space-y-4">
+    <div className="space-y-4">
+      {/* Terminal-style header */}
+      <div className="text-xs font-mono text-console-neon flex items-center space-x-2">
+        <span>►</span>
+        <span>Q-EXPR INPUT</span>
+      </div>
+      
+      <div className="space-y-3">
+        {/* Code editor area */}
         <div className="relative">
           <textarea
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Enter your Q expression here... (e.g., 8 8#64?1.0 for a random matrix)"
-            className="w-full p-4 border rounded-lg font-mono text-sm resize-none h-24 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+            placeholder="// Enter Q expression... (e.g., 8 8#64?1.0)&#10;// Use mx,my for mouse coordinates"
+            className="console-input w-full h-20 text-xs font-mono resize-none leading-relaxed"
             disabled={loading}
           />
-          <div className="absolute bottom-2 right-2 text-xs text-gray-400">
-            Ctrl+Enter to execute
+          <div className="absolute bottom-1 right-2 text-xs text-console-dim">
+            CTRL+ENTER
           </div>
         </div>
-        <div className="flex space-x-3">
+        
+        {/* Control buttons */}
+        <div className="flex space-x-2">
           <button
             onClick={executeQuery}
             disabled={loading || !query.trim()}
-            className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 px-6 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:from-indigo-700 hover:to-purple-700 transition-all duration-200 flex items-center justify-center space-x-2"
+            className="console-btn primary flex-1 text-xs flex items-center justify-center space-x-1"
           >
             {loading && !isLiveMode ? (
               <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                <span>Executing...</span>
+                <div className="animate-spin w-3 h-3 border border-current border-t-transparent rounded-full"></div>
+                <span>EXEC</span>
               </>
             ) : (
               <>
-                <span>▶</span>
-                <span>Execute Q Expression</span>
+                <span>►</span>
+                <span>EXECUTE</span>
               </>
             )}
           </button>
+          
           <button
             onClick={toggleLiveMode}
             disabled={!containsMouseVariables(query.trim())}
-            className={`px-4 py-3 rounded-lg font-medium transition-all duration-200 flex items-center space-x-2 ${
+            className={`console-btn text-xs flex items-center space-x-1 ${
               isLiveMode 
-                ? 'bg-red-600 text-white hover:bg-red-700' 
-                : 'bg-green-600 text-white hover:bg-green-700'
-            } disabled:opacity-50 disabled:cursor-not-allowed`}
+                ? 'bg-console-accent border-console-accent text-console-text' 
+                : 'bg-console-neon border-console-neon text-console-dark'
+            }`}
             title={isLiveMode ? 'Stop Live Mode' : 'Start Live Mode'}
           >
-            <span>{isLiveMode ? '⏹' : '🔴'}</span>
-            <span>{isLiveMode ? 'Stop' : 'Live'}</span>
+            <span className="w-2 h-2 rounded-full bg-current animate-pulse"></span>
+            <span>{isLiveMode ? 'STOP' : 'LIVE'}</span>
           </button>
+        </div>
+        
+        {/* Status indicator */}
+        <div className="text-xs font-mono flex items-center justify-between text-console-dim">
+          <div className="flex items-center space-x-2">
+            {isLiveMode && (
+              <div className="flex items-center space-x-1">
+                <div className="status-dot connected"></div>
+                <span className="neon-text">LIVE MODE ACTIVE</span>
+              </div>
+            )}
+          </div>
+          <div>
+            {containsMouseVariables(query.trim()) && (
+              <span className="text-console-warning">MOUSE VARS DETECTED</span>
+            )}
+          </div>
         </div>
       </div>
     </div>
