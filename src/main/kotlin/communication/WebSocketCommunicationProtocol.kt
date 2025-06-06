@@ -42,15 +42,19 @@ class WebSocketCommunicationProtocol(
     // Query response handling for async operations
     private val pendingQueries = ConcurrentHashMap<String, CompletableFuture<QueryResponseDto>>()
     
+    // Performance optimization: reuse QueryLifecycleManager instances
+    private var cachedQueryLifecycleManager: QueryLifecycleManager? = null
+    private val isDebugMode = logger.isDebugEnabled
+    
     override suspend fun executeQuery(query: String): QueryResponseDto {
         return withContext(Dispatchers.IO) {
-            executeQueryDirect(query)
+            executeQueryDirect(query, isLiveMode = false)
         }
     }
     
     override fun executeQueryAsync(query: String): CompletableFuture<QueryResponseDto> {
         return CompletableFuture.supplyAsync {
-            executeQueryDirect(query)
+            executeQueryDirect(query, isLiveMode = false)
         }
     }
     
@@ -82,7 +86,9 @@ class WebSocketCommunicationProtocol(
                 webSocket("/ws") {
                     val sessionId = sessionIdCounter.incrementAndGet().toString()
                     activeSessions[sessionId] = this
-                    logger.info("WebSocket session $sessionId connected")
+                    if (isDebugMode) {
+                        logger.info("WebSocket session $sessionId connected")
+                    }
                     
                     try {
                         for (frame in incoming) {
@@ -92,21 +98,29 @@ class WebSocketCommunicationProtocol(
                                     handleWebSocketMessage(sessionId, message)
                                 }
                                 is Frame.Close -> {
-                                    logger.info("WebSocket session $sessionId closed")
+                                    if (isDebugMode) {
+                                        logger.info("WebSocket session $sessionId closed")
+                                    }
                                     break
                                 }
                                 else -> {
-                                    logger.debug("Received non-text frame in session $sessionId")
+                                    if (isDebugMode) {
+                                        logger.debug("Received non-text frame in session $sessionId")
+                                    }
                                 }
                             }
                         }
                     } catch (e: ClosedReceiveChannelException) {
-                        logger.info("WebSocket session $sessionId channel closed")
+                        if (isDebugMode) {
+                            logger.info("WebSocket session $sessionId channel closed")
+                        }
                     } catch (e: Exception) {
                         logger.error("Error in WebSocket session $sessionId", e)
                     } finally {
                         activeSessions.remove(sessionId)
-                        logger.info("WebSocket session $sessionId removed")
+                        if (isDebugMode) {
+                            logger.info("WebSocket session $sessionId removed")
+                        }
                     }
                 }
             }
@@ -136,6 +150,9 @@ class WebSocketCommunicationProtocol(
         }
         activeSessions.clear()
         
+        // Clear cached resources
+        cachedQueryLifecycleManager = null
+        
         server?.stop(1000, 2000)
         isRunning = false
         logger.info("WebSocket communication protocol stopped")
@@ -145,12 +162,11 @@ class WebSocketCommunicationProtocol(
     
     override fun getConnectionStatus(): ConnectionStatus {
         return ConnectionStatus(
-            isConnected = isRunning && qManager.isRunning() && activeSessions.isNotEmpty(),
+            isConnected = isRunning && qManager.isRunning(),
             protocolType = "WebSocket",
             lastError = when {
                 !isRunning -> "WebSocket server not running"
                 !qManager.isRunning() -> "Q process not running"
-                activeSessions.isEmpty() -> "No active WebSocket connections"
                 else -> null
             }
         )
@@ -159,9 +175,18 @@ class WebSocketCommunicationProtocol(
     private suspend fun handleWebSocketMessage(sessionId: String, message: String) {
         try {
             val request = gson.fromJson(message, WebSocketQueryRequest::class.java)
-            logger.debug("WebSocket session $sessionId executing query: '${request.query}'")
             
-            val queryResponse = executeQueryDirect(request.query)
+            // Detect live mode queries (containing mouse variables)
+            val isLiveMode = request.query.contains("mouseX") || request.query.contains("mouseY")
+            
+            if (isDebugMode) {
+                logger.debug("WebSocket session $sessionId executing query: '${request.query}' (live mode: $isLiveMode)")
+            } else if (isLiveMode) {
+                // Always log live mode queries for debugging connectivity
+                logger.info("Live mode query from session $sessionId: ${request.query.take(50)}...")
+            }
+            
+            val queryResponse = executeQueryDirect(request.query, isLiveMode)
             
             val response = WebSocketQueryResponse(
                 id = request.id,
@@ -178,7 +203,7 @@ class WebSocketCommunicationProtocol(
             activeSessions[sessionId]?.send(Frame.Text(responseJson))
             
         } catch (e: Exception) {
-            logger.error("Error handling WebSocket message from session $sessionId", e)
+            logger.error("Error handling WebSocket message from session $sessionId: ${e.message}", e)
             val errorResponse = WebSocketQueryResponse(
                 id = null,
                 success = false,
@@ -187,15 +212,23 @@ class WebSocketCommunicationProtocol(
                 timestamp = System.currentTimeMillis()
             )
             val responseJson = gson.toJson(errorResponse)
-            activeSessions[sessionId]?.send(Frame.Text(responseJson))
+            try {
+                activeSessions[sessionId]?.send(Frame.Text(responseJson))
+            } catch (sendError: Exception) {
+                logger.error("Failed to send error response to session $sessionId", sendError)
+            }
         }
     }
     
-    private fun executeQueryDirect(queryString: String): QueryResponseDto {
-        logger.debug("WebSocket protocol executing query: '$queryString'")
+    private fun executeQueryDirect(queryString: String, isLiveMode: Boolean = false): QueryResponseDto {
+        if (isDebugMode) {
+            logger.debug("WebSocket protocol executing query: '$queryString' (live mode: $isLiveMode)")
+        }
         
         if (!qManager.isRunning()) {
-            logger.warn("Query execution failed: Q process is not running")
+            if (isDebugMode) {
+                logger.warn("Query execution failed: Q process is not running")
+            }
             return QueryResponseDto(
                 success = false,
                 error = "Q process is not running",
@@ -205,7 +238,9 @@ class WebSocketCommunicationProtocol(
         
         val ipcConnector = qManager.getIPCConnector()
         if (ipcConnector == null) {
-            logger.warn("Query execution failed: IPC Connector is not available")
+            if (isDebugMode) {
+                logger.warn("Query execution failed: IPC Connector is not available")
+            }
             return QueryResponseDto(
                 success = false,
                 error = "IPC Connector is not available",
@@ -214,9 +249,18 @@ class WebSocketCommunicationProtocol(
         }
         
         return try {
-            val queryLifecycleManager = QueryLifecycleManager(ipcConnector)
+            // Performance optimization: reuse QueryLifecycleManager for better performance
+            val queryLifecycleManager = cachedQueryLifecycleManager 
+                ?: QueryLifecycleManager(ipcConnector).also { cachedQueryLifecycleManager = it }
+            
             val request = QueryRequest(queryString)
-            val response = queryLifecycleManager.executeQuery(request)
+            
+            // Use fast path for live mode queries to minimize latency
+            val response = if (isLiveMode) {
+                queryLifecycleManager.executeQueryFastPath(request)
+            } else {
+                queryLifecycleManager.executeQuery(request)
+            }
             
             QueryResponseDto(
                 success = response.success,
@@ -245,7 +289,9 @@ class WebSocketCommunicationProtocol(
             try {
                 session.send(Frame.Text(message))
             } catch (e: Exception) {
-                logger.warn("Failed to send broadcast message to session", e)
+                if (isDebugMode) {
+                    logger.warn("Failed to send broadcast message to session", e)
+                }
             }
         }
     }

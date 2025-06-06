@@ -7,21 +7,35 @@ import java.io.IOException
 /**
  * Manages the lifecycle of a query to a Q process, including serialization,
  * sending the query, and deserializing the response.
+ * Optimized for high-frequency live mode queries.
  */
 class QueryLifecycleManager(private val ipcConnector: IPCConnector) {
 
     private val logger = LoggerFactory.getLogger(QueryLifecycleManager::class.java)
-    private val serializer = QueryRequestSerializer()
-    private val deserializer = QueryResponseDeserializer()
+    
+    // Use singleton instances to avoid object creation overhead
+    companion object {
+        private val serializer = QueryRequestSerializer()
+        private val deserializer = QueryResponseDeserializer()
+    }
 
     fun executeQuery(request: QueryRequest): QueryResponse {
-        logger.debug("Executing query: '${request.query}'")
+        val isDebugMode = logger.isDebugEnabled
         
+        if (isDebugMode) {
+            logger.debug("Executing query: '${request.query}'")
+        }
+        
+        // Fast path: if already connected, skip connection check overhead
         if (!ipcConnector.isConnected()) {
             try {
-                logger.info("Not connected. Attempting to connect to Q process...")
+                if (isDebugMode) {
+                    logger.info("Not connected. Attempting to connect to Q process...")
+                }
                 ipcConnector.connect()
-                logger.debug("Connection successful")
+                if (isDebugMode) {
+                    logger.debug("Connection successful")
+                }
             } catch (e: Exception) {
                 logger.error("Connection failed before sending query", e)
                 val errorDetails = ErrorDetails(
@@ -39,7 +53,9 @@ class QueryLifecycleManager(private val ipcConnector: IPCConnector) {
 
         val serializedQuery: String
         try {
-            logger.debug("Serializing query request")
+            if (isDebugMode) {
+                logger.debug("Serializing query request")
+            }
             serializedQuery = serializer.serialize(request)
         } catch (e: Exception) {
             logger.error("Serialization failed", e)
@@ -57,25 +73,34 @@ class QueryLifecycleManager(private val ipcConnector: IPCConnector) {
 
         var rawResponse: Any?
         try {
-            logger.debug("Sending query to Q process: '$serializedQuery'")
-            // Directly use the raw send method from QIPCConnector for now
-            rawResponse = ipcConnector.sendRawQuery(serializedQuery)
-            logger.debug("Received raw response: $rawResponse")
-            
-            logger.debug("Deserializing response")
-            val response = deserializer.deserialize(rawResponse, request)
-            logger.debug("Deserialized response - success: ${response.success}, dataType: ${response.dataType}")
-            
-            if (response.success) {
-                logger.debug("Query executed successfully, data: ${response.data}")
-            } else {
-                logger.warn("Query execution failed: ${response.error}")
+            if (isDebugMode) {
+                logger.debug("Sending query to Q process: '$serializedQuery'")
             }
             
-            // Special debugging for .z.t query
-            if (request.query.trim() == ".z.t") {
-                logger.info("Special debug for .z.t query - raw response type: ${rawResponse?.javaClass}")
-                logger.info("Special debug for .z.t query - raw response value: $rawResponse")
+            // Direct raw query execution - this is the hot path for live mode
+            rawResponse = ipcConnector.sendRawQuery(serializedQuery)
+            
+            if (isDebugMode) {
+                logger.debug("Received raw response: $rawResponse")
+                logger.debug("Deserializing response")
+            }
+            
+            val response = deserializer.deserialize(rawResponse, request)
+            
+            if (isDebugMode) {
+                logger.debug("Deserialized response - success: ${response.success}, dataType: ${response.dataType}")
+                
+                if (response.success) {
+                    logger.debug("Query executed successfully, data: ${response.data}")
+                } else {
+                    logger.warn("Query execution failed: ${response.error}")
+                }
+                
+                // Special debugging for .z.t query only when debug enabled
+                if (request.query.trim() == ".z.t") {
+                    logger.info("Special debug for .z.t query - raw response type: ${rawResponse?.javaClass}")
+                    logger.info("Special debug for .z.t query - raw response value: $rawResponse")
+                }
             }
             
             return response
@@ -111,6 +136,31 @@ class QueryLifecycleManager(private val ipcConnector: IPCConnector) {
                 error = "Unexpected error during query lifecycle for '${request.query}': ${e.message}",
                 dataType = "UnexpectedError",
                 errorDetails = errorDetails
+            )
+        }
+    }
+    
+    /**
+     * Fast path for live mode queries - minimal logging and error handling overhead
+     */
+    fun executeQueryFastPath(request: QueryRequest): QueryResponse {
+        return try {
+            val serializedQuery = serializer.serialize(request)
+            val rawResponse = ipcConnector.sendRawQuery(serializedQuery)
+            deserializer.deserialize(rawResponse, request)
+        } catch (e: c.KException) {
+            val errorDetails = QErrorAnalyzer.analyzeError(e.message, request.query)
+            QueryResponse(
+                data = null,
+                error = "KDB+ error: ${e.message}",
+                dataType = "KDBExecutionError",
+                errorDetails = errorDetails
+            )
+        } catch (e: Exception) {
+            QueryResponse(
+                data = null,
+                error = "Query failed: ${e.message}",
+                dataType = "UnexpectedError"
             )
         }
     }

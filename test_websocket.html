@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    <div id="status">Connecting...</div>
+    <button onclick="testQuery()">Test Query</button>
+    <button onclick="testLiveMode()">Test Live Mode Query</button>
+    <div id="results"></div>
+
+    <script>
+        const ws = new WebSocket('ws://localhost:8081/ws');
+        const statusDiv = document.getElementById('status');
+        const resultsDiv = document.getElementById('results');
+        
+        ws.onopen = function() {
+            statusDiv.innerHTML = '<span style="color: green;">✅ WebSocket Connected!</span>';
+            console.log('WebSocket connected');
+        };
+        
+        ws.onmessage = function(event) {
+            const response = JSON.parse(event.data);
+            console.log('Received:', response);
+            resultsDiv.innerHTML += `<div><strong>Response:</strong> ${JSON.stringify(response, null, 2)}</div>`;
+        };
+        
+        ws.onclose = function() {
+            statusDiv.innerHTML = '<span style="color: red;">❌ WebSocket Disconnected</span>';
+            console.log('WebSocket disconnected');
+        };
+        
+        ws.onerror = function(error) {
+            statusDiv.innerHTML = '<span style="color: red;">❌ WebSocket Error</span>';
+            console.error('WebSocket error:', error);
+        };
+        
+        function testQuery() {
+            const message = {
+                id: 'test_' + Date.now(),
+                query: '1+1',
+                timestamp: Date.now()
+            };
+            ws.send(JSON.stringify(message));
+        }
+        
+        function testLiveMode() {
+            const message = {
+                id: 'live_' + Date.now(),
+                query: 'mouseX:0.5; mouseY:0.3; 8 8#64?1.0',
+                timestamp: Date.now()
+            };
+            ws.send(JSON.stringify(message));
+        }
+    </script>
+</body>
+</html> 
