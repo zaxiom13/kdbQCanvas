@@ -7,14 +7,17 @@ export const useLiveMode = (executeQuery, query, mousePosRef, endLiveModeSession
   const [liveTimeout, setLiveTimeout] = useState(null)
   const [liveModeForever, setLiveModeForever] = useState(true) // Default to forever
   
-  // Performance optimization: throttle updates and use requestAnimationFrame
+  // Performance optimization: reduce throttling for better responsiveness
   const frameRequestRef = useRef()
   const lastExecutionTime = useRef(0)
-  const minExecutionInterval = 50 // Minimum 50ms between executions (20 FPS max)
+  const minExecutionInterval = 20 // Reduced from 50ms to 20ms (50 FPS max, up from 20 FPS)
   const pendingExecution = useRef(false)
   
   // Use ref to track live mode state for animation frames
   const isLiveModeRef = useRef(false)
+  
+  // Track mouse position at query execution time to prevent stale coordinates
+  const executionMousePos = useRef({ x: 0, y: 0 })
 
   const executeThrottledQuery = () => {
     const now = performance.now()
@@ -27,15 +30,22 @@ export const useLiveMode = (executeQuery, query, mousePosRef, endLiveModeSession
     pendingExecution.current = true
     lastExecutionTime.current = now
     
+    // Capture fresh mouse position at execution time to prevent jumps
+    const freshMousePos = { ...mousePosRef.current }
+    executionMousePos.current = freshMousePos
+    
     // Execute query asynchronously to avoid blocking the animation frame
-    Promise.resolve().then(() => {
+    Promise.resolve().then(async () => {
       try {
-        executeQuery(null, mousePosRef.current, mousePosRef, query, { 
+        await executeQuery(null, freshMousePos, mousePosRef, query, { 
           isLiveMode: true, 
           channelHint: 'fast' 
         })
       } catch (error) {
-        console.error('Live mode query execution error:', error)
+        // Only log non-throttling errors to reduce console spam
+        if (!error.message?.includes('throttled')) {
+          console.error('Live mode query execution error:', error)
+        }
       } finally {
         pendingExecution.current = false
       }
@@ -86,8 +96,11 @@ export const useLiveMode = (executeQuery, query, mousePosRef, endLiveModeSession
       isLiveModeRef.current = true // Update ref
       lastExecutionTime.current = 0 // Reset throttling
       
+      // Capture initial mouse position
+      executionMousePos.current = { ...mousePosRef.current }
+      
       // Execute initial query with live mode options
-      executeQuery(null, null, mousePosRef, query, { 
+      executeQuery(null, executionMousePos.current, mousePosRef, query, { 
         isLiveMode: true, 
         channelHint: 'fast' 
       })

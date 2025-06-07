@@ -17,7 +17,7 @@ export class FastChannelClient {
     // Performance optimizations
     this.pendingQueries = new Set() // Track pending queries to avoid duplicates
     this.lastQueryTime = 0
-    this.minQueryInterval = 16 // Minimum 16ms between queries (60 FPS max)
+    this.minQueryInterval = 8 // Reduced from 16ms to 8ms for faster live mode updates
     
     // Reusable message object to reduce GC pressure
     this.reuseableMessage = {
@@ -135,10 +135,17 @@ export class FastChannelClient {
       throw new Error('FastChannel not connected')
     }
     
-    // Throttle queries to prevent overwhelming the backend
+    // Optimized throttling for live mode queries
+    const isLiveModeQuery = query.includes('mouseX') || query.includes('mouseY')
+    const throttleInterval = isLiveModeQuery ? 4 : this.minQueryInterval // 4ms for live mode (250 FPS max)
+    
     const now = Date.now()
-    if (now - this.lastQueryTime < this.minQueryInterval) {
-      // Skip this query if we're sending too frequently
+    if (now - this.lastQueryTime < throttleInterval) {
+      // For live mode, return a quick skip to maintain responsiveness
+      if (isLiveModeQuery) {
+        return { success: false, error: 'Query throttled for responsiveness', throttled: true }
+      }
+      // For regular queries, honor the throttle
       return { success: false, error: 'Query throttled', throttled: true }
     }
     this.lastQueryTime = now
@@ -151,12 +158,13 @@ export class FastChannelClient {
     }
     
     return new Promise((resolve, reject) => {
-      // Set up timeout
+      // Set up timeout - shorter for live mode for better responsiveness
+      const actualTimeout = isLiveModeQuery ? Math.min(timeout, 500) : timeout
       const timeoutId = setTimeout(() => {
         this.queryCallbacks.delete(queryId)
         this.pendingQueries.delete(queryId)
-        reject(new Error('Query timeout'))
-      }, timeout)
+        reject(new Error(`Query timeout after ${actualTimeout}ms`))
+      }, actualTimeout)
       
       // Store callback
       this.queryCallbacks.set(queryId, (response) => {

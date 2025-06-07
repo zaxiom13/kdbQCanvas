@@ -1,10 +1,17 @@
-import { useEffect, useRef, useState, forwardRef } from 'react'
+import { useEffect, useRef, useState, forwardRef, useCallback } from 'react'
 
 const ArrayCanvas = forwardRef(({ data, arrayShape, maxCanvasSize = 400 }, ref) => {
   const canvasRef = useRef(null)
   const [currentFrame, setCurrentFrame] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [intervalId, setIntervalId] = useState(null)
+  
+  // Performance optimizations for live mode
+  const renderRequestRef = useRef(null)
+  const lastRenderTime = useRef(0)
+  const minRenderInterval = 16 // Maximum 60 FPS rendering
+  const isLiveModeRef = useRef(false)
+  const previousDataRef = useRef(null)
 
   // Debug logging for mouse-based queries
   useEffect(() => {
@@ -39,7 +46,8 @@ const ArrayCanvas = forwardRef(({ data, arrayShape, maxCanvasSize = 400 }, ref) 
   const isGrayscaleGif = dimensions?.length === 3 && dimensions?.[2] !== 3
   const isColorGif = dimensions?.length === 4 && dimensions?.[3] === 3
 
-  useEffect(() => {
+  // Optimized rendering function that can be throttled
+  const performRender = useCallback(() => {
     if (!data || !arrayShape || !dimensions) {
       return
     }
@@ -53,6 +61,9 @@ const ArrayCanvas = forwardRef(({ data, arrayShape, maxCanvasSize = 400 }, ref) 
     if (!canvas) return
 
     const ctx = canvas.getContext('2d')
+    
+    // Enable optimizations for better performance
+    ctx.imageSmoothingEnabled = false // Disable anti-aliasing for pixel art
 
     if (isGrayscale2D) {
       renderGrayscale2D(ctx, data, dims)
@@ -63,8 +74,49 @@ const ArrayCanvas = forwardRef(({ data, arrayShape, maxCanvasSize = 400 }, ref) 
     } else if (isColorGif) {
       renderColorFrame(ctx, data, dims, currentFrame)
     }
+  }, [data, arrayShape, currentFrame, maxCanvasSize, dimensions, isGrayscale2D, isColorImage, isGrayscaleGif, isColorGif])
 
-  }, [data, arrayShape, currentFrame, maxCanvasSize])
+  // Throttled render function for live mode
+  const throttledRender = useCallback(() => {
+    const now = performance.now()
+    
+    if (now - lastRenderTime.current < minRenderInterval) {
+      // Schedule the render for the next available frame
+      if (!renderRequestRef.current) {
+        renderRequestRef.current = requestAnimationFrame(() => {
+          renderRequestRef.current = null
+          throttledRender()
+        })
+      }
+      return
+    }
+    
+    lastRenderTime.current = now
+    performRender()
+  }, [performRender])
+
+  // Detect if this might be live mode data (frequent updates)
+  useEffect(() => {
+    // Simple heuristic: if data updates very frequently, assume live mode
+    const now = performance.now()
+    const timeSinceLastRender = now - lastRenderTime.current
+    
+    if (timeSinceLastRender < 100) { // If data updated within 100ms of last render
+      isLiveModeRef.current = true
+    } else if (timeSinceLastRender > 1000) { // If more than 1 second, likely not live mode
+      isLiveModeRef.current = false
+    }
+    
+    // Use throttled rendering for better performance
+    if (isLiveModeRef.current) {
+      throttledRender()
+    } else {
+      performRender()
+    }
+    
+    // Store reference for comparison
+    previousDataRef.current = data
+  }, [data, arrayShape, currentFrame, maxCanvasSize, throttledRender, performRender])
 
   const renderGrayscale2D = (ctx, data, dims) => {
     const [rows, cols] = dims
@@ -84,19 +136,49 @@ const ArrayCanvas = forwardRef(({ data, arrayShape, maxCanvasSize = 400 }, ref) 
     // Get normalization values
     const { minVal, maxVal, range } = getNormalizationValues(matrix, rows, cols)
 
-    // Draw pixels
-    for (let i = 0; i < rows; i++) {
-      for (let j = 0; j < cols; j++) {
-        if (matrix[i] && matrix[i][j] !== undefined && matrix[i][j] !== null) {
-          const value = Number(matrix[i][j])
-          const normalized = range === 0 ? 0 : (value - minVal) / range
-          const grayValue = Math.floor(normalized * 255)
-          
-          ctx.fillStyle = `rgb(${grayValue}, ${grayValue}, ${grayValue})`
-          ctx.fillRect(j * pixelWidth, i * pixelHeight, pixelWidth, pixelHeight)
-        } else {
-          ctx.fillStyle = 'red'
-          ctx.fillRect(j * pixelWidth, i * pixelHeight, pixelWidth, pixelHeight)
+    // Use ImageData for faster pixel manipulation in live mode
+    if (isLiveModeRef.current && pixelWidth === 1 && pixelHeight === 1) {
+      const imageData = ctx.createImageData(cols, rows)
+      const data = imageData.data
+      
+      for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+          if (matrix[i] && matrix[i][j] !== undefined && matrix[i][j] !== null) {
+            const value = Number(matrix[i][j])
+            const normalized = range === 0 ? 0 : (value - minVal) / range
+            const grayValue = Math.floor(normalized * 255)
+            
+            const pixelIndex = (i * cols + j) * 4
+            data[pixelIndex] = grayValue     // R
+            data[pixelIndex + 1] = grayValue // G
+            data[pixelIndex + 2] = grayValue // B
+            data[pixelIndex + 3] = 255       // A
+          } else {
+            const pixelIndex = (i * cols + j) * 4
+            data[pixelIndex] = 255     // R (red for errors)
+            data[pixelIndex + 1] = 0   // G
+            data[pixelIndex + 2] = 0   // B
+            data[pixelIndex + 3] = 255 // A
+          }
+        }
+      }
+      
+      ctx.putImageData(imageData, 0, 0)
+    } else {
+      // Use traditional fillRect for larger pixel sizes
+      for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+          if (matrix[i] && matrix[i][j] !== undefined && matrix[i][j] !== null) {
+            const value = Number(matrix[i][j])
+            const normalized = range === 0 ? 0 : (value - minVal) / range
+            const grayValue = Math.floor(normalized * 255)
+            
+            ctx.fillStyle = `rgb(${grayValue}, ${grayValue}, ${grayValue})`
+            ctx.fillRect(j * pixelWidth, i * pixelHeight, pixelWidth, pixelHeight)
+          } else {
+            ctx.fillStyle = 'red'
+            ctx.fillRect(j * pixelWidth, i * pixelHeight, pixelWidth, pixelHeight)
+          }
         }
       }
     }
@@ -153,21 +235,50 @@ const ArrayCanvas = forwardRef(({ data, arrayShape, maxCanvasSize = 400 }, ref) 
     const maxVal = Math.max(...allValues)
     const range = maxVal - minVal
 
-    // Draw pixels
-    for (let i = 0; i < rows; i++) {
-      for (let j = 0; j < cols; j++) {
-        if (matrix[i] && matrix[i][j]) {
-          const r = range === 0 ? 128 : Math.floor(((Number(matrix[i][j][0]) - minVal) / range) * 255)
-          const g = range === 0 ? 128 : Math.floor(((Number(matrix[i][j][1]) - minVal) / range) * 255)
-          const b = range === 0 ? 128 : Math.floor(((Number(matrix[i][j][2]) - minVal) / range) * 255)
-          
-          // Clamp values
-          const rClamped = Math.max(0, Math.min(255, r))
-          const gClamped = Math.max(0, Math.min(255, g))
-          const bClamped = Math.max(0, Math.min(255, b))
-          
-          ctx.fillStyle = `rgb(${rClamped}, ${gClamped}, ${bClamped})`
-          ctx.fillRect(j * pixelWidth, i * pixelHeight, pixelWidth, pixelHeight)
+    // Use ImageData for faster pixel manipulation in live mode
+    if (isLiveModeRef.current && pixelWidth === 1 && pixelHeight === 1) {
+      const imageData = ctx.createImageData(cols, rows)
+      const data = imageData.data
+      
+      for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+          if (matrix[i] && matrix[i][j]) {
+            const r = range === 0 ? 128 : Math.floor(((Number(matrix[i][j][0]) - minVal) / range) * 255)
+            const g = range === 0 ? 128 : Math.floor(((Number(matrix[i][j][1]) - minVal) / range) * 255)
+            const b = range === 0 ? 128 : Math.floor(((Number(matrix[i][j][2]) - minVal) / range) * 255)
+            
+            // Clamp values
+            const rClamped = Math.max(0, Math.min(255, r))
+            const gClamped = Math.max(0, Math.min(255, g))
+            const bClamped = Math.max(0, Math.min(255, b))
+            
+            const pixelIndex = (i * cols + j) * 4
+            data[pixelIndex] = rClamped     // R
+            data[pixelIndex + 1] = gClamped // G
+            data[pixelIndex + 2] = bClamped // B
+            data[pixelIndex + 3] = 255      // A
+          }
+        }
+      }
+      
+      ctx.putImageData(imageData, 0, 0)
+    } else {
+      // Use traditional fillRect for larger pixel sizes
+      for (let i = 0; i < rows; i++) {
+        for (let j = 0; j < cols; j++) {
+          if (matrix[i] && matrix[i][j]) {
+            const r = range === 0 ? 128 : Math.floor(((Number(matrix[i][j][0]) - minVal) / range) * 255)
+            const g = range === 0 ? 128 : Math.floor(((Number(matrix[i][j][1]) - minVal) / range) * 255)
+            const b = range === 0 ? 128 : Math.floor(((Number(matrix[i][j][2]) - minVal) / range) * 255)
+            
+            // Clamp values
+            const rClamped = Math.max(0, Math.min(255, r))
+            const gClamped = Math.max(0, Math.min(255, g))
+            const bClamped = Math.max(0, Math.min(255, b))
+            
+            ctx.fillStyle = `rgb(${rClamped}, ${gClamped}, ${bClamped})`
+            ctx.fillRect(j * pixelWidth, i * pixelHeight, pixelWidth, pixelHeight)
+          }
         }
       }
     }

@@ -4,15 +4,18 @@ export const useMousePosition = (canvasRef = null) => {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
   const mousePosRef = useRef({ x: 0, y: 0 })
   
-  // Performance optimization: throttle mouse updates
+  // Performance optimization: reduce throttling to align with live mode updates
   const lastUpdateTime = useRef(0)
-  const updateThrottle = 16 // ~60 FPS max update rate
+  const updateThrottle = 8 // Reduced from 16ms to 8ms (~120 FPS max for better responsiveness)
   const pendingUpdate = useRef(false)
   
   // Cache canvas rect to avoid repeated getBoundingClientRect calls
   const canvasRect = useRef(null)
   const lastCanvasRectUpdate = useRef(0)
-  const canvasRectCacheTime = 1000 // Cache for 1 second
+  const canvasRectCacheTime = 500 // Reduced from 1000ms to 500ms for more responsive updates
+  
+  // Add a high-frequency ref update that bypasses React state throttling
+  const immediateMousePos = useRef({ x: 0, y: 0 })
   
   const updateCanvasRect = useCallback(() => {
     const now = Date.now()
@@ -22,23 +25,7 @@ export const useMousePosition = (canvasRef = null) => {
     }
   }, [canvasRef])
   
-  const handleMouseMove = useCallback((e) => {
-    const now = Date.now()
-    
-    // Throttle updates to prevent excessive re-renders
-    if (now - lastUpdateTime.current < updateThrottle) {
-      if (!pendingUpdate.current) {
-        pendingUpdate.current = true
-        requestAnimationFrame(() => {
-          pendingUpdate.current = false
-          handleMouseMove(e)
-        })
-      }
-      return
-    }
-    
-    lastUpdateTime.current = now
-    
+  const calculateMousePosition = useCallback((e) => {
     let newPos = { x: e.clientX, y: e.clientY }
     
     // If we have a canvas reference, calculate relative coordinates
@@ -60,10 +47,35 @@ export const useMousePosition = (canvasRef = null) => {
       }
     }
     
-    // Update both state and ref
-    setMousePos(newPos)
-    mousePosRef.current = newPos
+    return newPos
   }, [canvasRef, updateCanvasRect])
+  
+  const handleMouseMove = useCallback((e) => {
+    const now = Date.now()
+    const newPos = calculateMousePosition(e)
+    
+    // Always update the immediate ref for live mode queries to prevent stale coordinates
+    immediateMousePos.current = newPos
+    mousePosRef.current = newPos
+    
+    // Throttle React state updates to prevent excessive re-renders
+    if (now - lastUpdateTime.current < updateThrottle) {
+      if (!pendingUpdate.current) {
+        pendingUpdate.current = true
+        requestAnimationFrame(() => {
+          pendingUpdate.current = false
+          // Use the most recent mouse position for state update
+          setMousePos({ ...immediateMousePos.current })
+        })
+      }
+      return
+    }
+    
+    lastUpdateTime.current = now
+    
+    // Update React state
+    setMousePos(newPos)
+  }, [calculateMousePosition, updateThrottle])
 
   useEffect(() => {
     // Use passive event listener for better performance
