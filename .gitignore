@@ -12,8 +12,11 @@ frontend/.env.development.local
 frontend/.env.test.local
 frontend/.env.production.local
 
-# Logs
+# Logs - ignore entire logs directory and all log files
+logs/
 *.log
+*.log.*
+*.log.gz
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
