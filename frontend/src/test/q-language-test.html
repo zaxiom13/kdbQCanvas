@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monaco Editor Q Language Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: #2d3748;
+            color: white;
+            padding: 16px 24px;
+            border-bottom: 1px solid #4a5568;
+        }
+        .editor-container {
+            height: 500px;
+            border: 1px solid #e2e8f0;
+        }
+        .test-samples {
+            padding: 20px;
+            background: #f7fafc;
+            border-top: 1px solid #e2e8f0;
+        }
+        .sample-button {
+            margin: 4px;
+            padding: 8px 12px;
+            background: #4299e1;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .sample-button:hover {
+            background: #3182ce;
+        }
+        .status {
+            padding: 12px 20px;
+            background: #edf2f7;
+            font-family: monospace;
+            font-size: 12px;
+            color: #2d3748;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Monaco Editor Q Language Test</h1>
+            <p>Testing Q/KDB+ syntax highlighting, autocompletion, and features</p>
+        </div>
+        
+        <div id="editor" class="editor-container"></div>
+        
+        <div class="test-samples">
+            <h3>Test Q Code Samples (Click to Load)</h3>
+            <button class="sample-button" onclick="loadSample('basic')">Basic Operations</button>
+            <button class="sample-button" onclick="loadSample('table')">Table Operations</button>
+            <button class="sample-button" onclick="loadSample('select')">Select Queries</button>
+            <button class="sample-button" onclick="loadSample('functions')">Functions</button>
+            <button class="sample-button" onclick="loadSample('dates')">Date/Time</button>
+            <button class="sample-button" onclick="loadSample('advanced')">Advanced</button>
+        </div>
+        
+        <div class="status" id="status">
+            Ready - Try typing Q code above to test syntax highlighting and autocompletion
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+    <script>
+        // Q language samples
+        const samples = {
+            basic: `/ Basic Q operations
+1 + 2 + 3
+sum 1 2 3 4 5
+avg til 10
+count til 100
+show "Hello Q!"`,
+
+            table: `/ Table operations
+t:([] name:\`alice\`bob\`charlie; age:25 30 35; city:\`NYC\`LA\`Chicago)
+show t
+flip t
+cols t
+meta t`,
+
+            select: `/ Select queries
+t:([] sym:\`AAPL\`GOOGL\`MSFT\`AAPL; price:150.5 2800 300 155.2; vol:1000 500 750 1200)
+select from t
+select sym, price from t where price > 200
+select avg price by sym from t
+select max price, sum vol by sym from t`,
+
+            functions: `/ Functions and operators
+f:{x+y}
+f[10;20]
+
+square:{x*x}
+square each 1 2 3 4 5
+
+/ Lambda functions
+{x*2} each 1 2 3 4 5
+{sum x} each (1 2 3; 4 5 6; 7 8 9)`,
+
+            dates: `/ Date and time operations
+.z.d  / current date
+.z.t  / current time
+.z.p  / current timestamp
+
+/ Date arithmetic
+2023.01.01 + til 10
+2023.01.01D10:30:00.000 + 00:15:00`,
+
+            advanced: `/ Advanced Q features
+/ Dictionaries
+d:\`a\`b\`c!1 2 3
+d[\`a]
+
+/ Apply and each
++/[1 2 3 4 5]
+*/[2 3 4]
+
+/ Tables with foreign keys
+t1:([] id:1 2 3; name:\`alice\`bob\`charlie)
+t2:([] id:1 1 2 3 3; item:\`apple\`banana\`cherry\`date\`elderberry)
+t1 lj \`id xkey t2`
+        };
+
+        let editor;
+
+        // Initialize Monaco Editor
+        require.config({ paths: { vs: 'https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs' } });
+        require(['vs/editor/editor.main'], function () {
+            // Register Q language
+            monaco.languages.register({ 
+                id: 'q',
+                extensions: ['.q', '.k'],
+                aliases: ['Q', 'q', 'KDB+', 'kdb+'],
+                mimetypes: ['text/x-q']
+            });
+
+            // Q language keywords
+            const qKeywords = [
+                'select', 'from', 'where', 'by', 'update', 'delete', 'insert', 'exec',
+                'sum', 'avg', 'max', 'min', 'count', 'first', 'last', 'til', 'show',
+                'flip', 'cols', 'meta', 'key', 'keys', 'each', 'over', 'scan'
+            ];
+            
+            // Enhanced Q language syntax highlighting
+            monaco.languages.setMonarchTokensProvider('q', {
+                keywords: qKeywords,
+                operators: ['+', '-', '*', '%', '!', '&', '|', '^', '=', '<>', '<', '>', '<=', '>=', '~', ',', '#', '_', '$', '?', '@', '.'],
+                symbols: /[=><!~?:&|+\-*\/\^%]+/,
+                
+                tokenizer: {
+                    root: [
+                        // Comments
+                        [/\/.*$/, 'comment'],
+                        [/\\.*$/, 'comment'],
+                        
+                        // Symbols
+                        [/`[a-zA-Z_][a-zA-Z0-9_]*/, 'type.identifier'],
+                        [/`/, 'type.identifier'],
+                        
+                        // Variables with assignment
+                        [/[a-zA-Z_][a-zA-Z0-9_.]*:/, 'variable.name'],
+                        
+                        // Keywords
+                        [/\b(?:select|update|delete|insert|exec|from|where|by|within|if|while|do)\b/, 'keyword.control'],
+                        [/\b(?:sum|avg|max|min|count|first|last|til|show|flip|cols|meta|key|keys|each|over|scan)\b/, 'keyword'],
+                        
+                        // Numbers
+                        [/\b\d+[wijbxhfemdnuvpt]?\b/, 'number'],
+                        [/\b\d*\.\d+[fe]?\b/, 'number.float'],
+                        [/\b\d{4}\.\d{2}\.\d{2}[DT]?\d*:\d*:\d*(\.\d*)?/, 'number'],
+                        
+                        // Strings
+                        [/"([^"\\]|\\.)*$/, 'string.invalid'],
+                        [/"/, 'string', '@string_double'],
+                        
+                        // Operators
+                        [/@symbols/, 'operator'],
+                        
+                        // Brackets
+                        [/[\[\]{}()]/, '@brackets'],
+                        [/[;,]/, 'delimiter'],
+                        
+                        // Identifiers
+                        [/[a-zA-Z_][a-zA-Z0-9_.]*/, 'identifier'],
+                    ],
+                    
+                    string_double: [
+                        [/[^\\"]+/, 'string'],
+                        [/"/, 'string', '@pop']
+                    ]
+                }
+            });
+
+            // Auto-completion
+            monaco.languages.registerCompletionItemProvider('q', {
+                provideCompletionItems: function(model, position) {
+                    const word = model.getWordUntilPosition(position);
+                    const range = {
+                        startLineNumber: position.lineNumber,
+                        endLineNumber: position.lineNumber,
+                        startColumn: word.startColumn,
+                        endColumn: word.endColumn
+                    };
+
+                    return {
+                        suggestions: qKeywords.map(keyword => ({
+                            label: keyword,
+                            kind: monaco.languages.CompletionItemKind.Keyword,
+                            insertText: keyword,
+                            range: range
+                        }))
+                    };
+                }
+            });
+
+            // Create editor
+            editor = monaco.editor.create(document.getElementById('editor'), {
+                value: samples.basic,
+                language: 'q',
+                theme: 'vs-dark',
+                minimap: { enabled: false },
+                fontSize: 14,
+                fontFamily: 'JetBrains Mono, Consolas, monospace',
+                automaticLayout: true,
+                lineNumbers: 'on',
+                wordWrap: 'on'
+            });
+
+            // Update status
+            updateStatus('Monaco Editor initialized with Q language support');
+            
+            // Listen for content changes
+            editor.onDidChangeModelContent(() => {
+                updateStatus('Code changed - Q syntax highlighting active');
+            });
+        });
+
+        function loadSample(sampleName) {
+            if (editor && samples[sampleName]) {
+                editor.setValue(samples[sampleName]);
+                updateStatus(`Loaded ${sampleName} sample - Try Ctrl+Space for autocompletion`);
+            }
+        }
+
+        function updateStatus(message) {
+            document.getElementById('status').textContent = new Date().toLocaleTimeString() + ' - ' + message;
+        }
+    </script>
+</body>
+</html> 
